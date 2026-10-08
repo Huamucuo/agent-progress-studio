@@ -3,3 +3,4 @@ node_modules/
 .agent-progress/results.json
 test-results/
 *.log
+experiments/work-hooks/plugin/settings.json

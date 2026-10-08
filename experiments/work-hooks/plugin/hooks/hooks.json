@@ -1,0 +1,57 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "commandWindows": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "type": "command",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "commandWindows": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "type": "command",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "commandWindows": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "type": "command",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "commandWindows": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "type": "command",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  },
+  "description": "Records only event type, session ID, turn ID and recorder timestamp. No prompts, tool data, transcript reads or network."
+}

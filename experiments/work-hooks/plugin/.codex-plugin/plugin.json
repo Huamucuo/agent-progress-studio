@@ -1,0 +1,6 @@
+{
+  "name": "aps-work-hook-probe",
+  "version": "0.0.1",
+  "description": "Local lifecycle metadata feasibility experiment",
+  "hooks": "./hooks/hooks.json"
+}
