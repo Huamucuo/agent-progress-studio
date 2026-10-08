@@ -2,11 +2,13 @@
 
 **See the work. Inspect the evidence. Decide what is done.**
 
-[简体中文](README.zh-CN.md) · Version 0.1.0 · MIT · Local Codex first
+[简体中文](README.zh-CN.md) · Version 0.1.1-rc.1 · MIT · Local Codex + Work Hook experiment
 
 An original, local browser dashboard for coding-agent observability. It separates an agent's activity and self-reported plan from verifiable acceptance conditions. No production dependencies, accounts, API keys, telemetry or cloud service.
 
 **Development branch: Work locally Hook experiment.** An optional, separately installed and trusted metadata probe now feeds the dashboard. It discovers session IDs and shows real lifecycle callbacks; product labels require user confirmation. Plans, tokens and acceptance remain unknown for this source. [Setup, actual host findings and removal](docs/WORK-HOOKS.md). Start with `start.cmd --work-hooks` after configuring the probe. The original V0.1.0 release ZIP remains unchanged.
+
+This candidate is held for incremental source/license review and user acceptance. The reported V0.1 audit approval applies only to the baseline and its original ZIP. [Candidate review scope](docs/INCREMENTAL-REVIEW.md).
 
 ## Start on Windows
 

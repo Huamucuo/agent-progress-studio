@@ -5,7 +5,7 @@ const port = Number(option('--port') || process.env.APS_PORT || 4317);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid port');
 try {
   const app = await createApplication({ port, mode: args.includes('--demo') ? 'demo' : args.includes('--work-hooks') ? 'work-hooks' : 'local', workspace: option('--workspace'), codexHome: option('--codex-home'), dataDir: option('--data-dir'), workHooksDir: option('--work-hooks-dir') });
-  console.log(`Agent Progress Studio 0.1.0\n${app.url}\nKeep this window open. Press Ctrl+C to stop.\nThis launcher does not install plugins. Hook observation requires the separately trusted probe.`);
+  console.log(`Agent Progress Studio 0.1.1-rc.1\n${app.url}\nKeep this window open. Press Ctrl+C to stop.\nThis launcher does not install plugins. Hook observation requires the separately trusted probe.`);
   if (!args.includes('--no-open')) {
     const program = process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
     const child = spawn(program, [app.url], { stdio: 'ignore', windowsHide: true }); child.on('error', () => console.log('Open the URL above in your browser.')); child.unref();

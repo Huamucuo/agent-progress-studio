@@ -79,7 +79,7 @@ export class StudioService extends EventEmitter {
     this.reviewKey = digest(`${this.mode}:${task.id}:${this.workspace || ''}:${this.evidence.manifest?.taskId || ''}`);
     const acceptance = evaluateAcceptance(this.evidence.manifest, this.evidence, this.reviews[this.reviewKey] || {});
     this.snapshot = {
-      schemaVersion: 1, version: '0.1.0', observedAt: new Date().toISOString(),
+      schemaVersion: 1, version: '0.1.1-rc.1', observedAt: new Date().toISOString(),
       source: { mode: this.mode, connected: !!this.source && !this.error && (this.mode !== 'work-hooks' || this.source.received), error: this.error,
         label: this.mode === 'demo' ? 'SIMULATED' : this.mode === 'work-hooks' ? 'Local lifecycle Hooks · metadata only' : this.mode === 'local' ? 'Codex JSONL · best effort' : 'Codex app-server · read polling',
         origin: this.mode === 'work-hooks' ? this.hookOrigin(task.id) : this.mode === 'demo' ? 'simulated' : 'codex',

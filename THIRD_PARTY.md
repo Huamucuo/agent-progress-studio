@@ -2,6 +2,12 @@
 
 Production npm dependencies: **none**. The application uses Node.js built-in modules and the browser platform. Node.js, Git and browsers are independently installed tools and are not bundled in the release ZIP.
 
+## Fonts / 字体
+
+The UI's CSS names `Inter`, `Segoe UI`, `Microsoft YaHei`, `system-ui`, `sans-serif`, `Cascadia Code`, `Consolas` and `monospace` as locally available font families/fallbacks. There are no `@font-face` declarations, font URLs or embedded font data in the application's CSS. Naming a family does not install or bundle it; if absent, the browser uses the next available fallback.
+
+本项目未包含或再分发 TTF、OTF、TTC、WOFF、WOFF2 或 EOT 字体文件，也没有复制 Windows 字体。显示使用用户电脑已有的字体或浏览器回退。本轮候选包的文件清单和字体二进制检查会记录在包外的审计附件中；开发依赖及其资源不进入发布 ZIP。此说明是分发内容核查，不是对用户电脑上已安装字体来源的审计。
+
 Optional development dependencies (locked in package-lock.json):
 
 | Package | Version | License | Purpose |

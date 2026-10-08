@@ -2,11 +2,13 @@
 
 **看见执行，检查证据，确认真正完成。**
 
-[English](README.md) · V0.1.0 · MIT 开源许可证 · 优先支持本地 Codex
+[English](README.md) · V0.1.1-rc.1 · MIT 开源许可证 · 本地 Codex + Work Hook 实验
 
 原创的本地 AI 编程 Agent 仪表盘。把任务活动、Agent 自报计划和验收证据分开显示。运行时零第三方依赖，不需要账号、API 密钥或云服务。
 
 **当前开发分支新增 Work locally Hook 实验。** 单独安装并信任可选元数据探针后，可自动发现会话 ID、查看真实生命周期回调，并逐会话确认 Work/Codex 来源；计划、Token 和验收仍保持未知。[安装、实测发现与卸载](docs/WORK-HOOKS.md)。完成探针配置后运行 `start.cmd --work-hooks`。原始 V0.1.0 发布 ZIP 保持不变。
+
+此候选版等待增量来源/许可证审计与用户人工验收；用户报告的 V0.1 审计通过结论仅适用于原基线与原 ZIP。[本次审计范围](docs/INCREMENTAL-REVIEW.md)。
 
 ## Windows 快速开始
 
