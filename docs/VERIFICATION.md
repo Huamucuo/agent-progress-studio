@@ -49,3 +49,11 @@ start.cmd --workspace "C:\path\to\agent-progress-studio"
 ```
 
 Use the no-plan simulation in Connections to check unknown progress. Open the full simulation to inspect distinct failed, unknown, implemented, awaiting-review and verified conditions.
+
+## 0.1.1-rc.2 incremental validation
+
+The V0.1 statements above describe the audited baseline. RC.2 adds optional real Work lifecycle/tool observations and a monitoring-first home; see [WORK-HOOKS](WORK-HOOKS.md) for live evidence and failed-attempt limits. Unit and browser fixtures are isolated from the real recorder spool. New regression cases cover automatic Codex discovery, stable task selection, tool metadata filtering, missing outcomes, stale activity, and the three separate progress measures. Git/test/human-review/export/theme/language flows remain in the suite.
+
+The accompanying archive manifest records actual final test totals, full commit SHA, every baseline delta path, distributed file hashes and font inspection. Neither automated tests nor interface appearance mean the original product scope has been fully achieved. Independent incremental audit and user acceptance remain pending.
+
+A separate real Codex CLI probe was started in a scratch directory with a read-only sandbox and a fixed-response/no-tools prompt. Its new session was discovered automatically at 2026-10-08 22:26:03 UTC. The in-app browser subsequently selected its exact ID and displayed its real task and stale execution evidence. The initial automated selection assertion sampled before the asynchronous selection response; later direct browser inspection confirmed the selection. The CLI itself produced no final reply within the 90-second test bound and was stopped, so a **real completed Codex turn is not validated in this run**. The raw CLI error was not retained; no precise timeout cause is claimed. Isolated browser and service regression tests do verify selected-log appends and completed-turn rendering, but are not a substitute for that missing live completion result.

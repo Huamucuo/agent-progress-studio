@@ -66,7 +66,7 @@ function planCard() {
   return card(t('plan'), t('planHint'), plan.length ? h('ol', { className: 'plan-list' }, plan.map((step, i) => h('li', { className: step.status }, h('span', { className: 'step-index' }, step.status === 'completed' ? icon('check') : String(i + 1).padStart(2, '0')), h('span', { className: 'step-text' }, step.step), status(step.status)))) : empty(t('noPlan'), t('noPlanDetail')), h('span', { className: 'tiny mono' }, `${plan.length} ${t('planSteps')}`));
 }
 function toolsCard() {
-  const tools = snapshot.task.tools.slice(-3).reverse();
+  const tools = isHooks() ? snapshot.task.events.filter(e => ['PreToolUse', 'PostToolUse'].includes(e.name)).slice(-3).reverse().map(e => ({ name: e.metadata.tool_name || t('unknown'), status: e.metadata.tool_status || 'unknown', text: `${e.name} · ${date(e.at)}` })) : snapshot.task.tools.slice(-3).reverse();
   const rows = tools.map(tool => {
     const content = h('span', { className: 'tool-content' },
       h('span', { className: 'tool-glyph mono' }, '>_'),
@@ -74,7 +74,49 @@ function toolsCard() {
       status(tool.status));
     return button(content, () => showDialog(tool.name, h('pre', {}, tool.text || t('noDetail')), null, t('close')), { className: `tool-row ${tool.status}` });
   });
-  return card(t('tools'), t('toolsHint'), tools.length ? h('div', { className: 'tool-list' }, rows) : empty(t(isHooks() ? 'unknown' : 'noTools'), t(isHooks() ? 'hookUnknown' : 'noToolsDetail')));
+  return card(t('tools'), t(isHooks() ? 'hookToolsHint' : 'toolsHint'), tools.length ? h('div', { className: 'tool-list' }, rows) : empty(t(isHooks() ? 'unknown' : 'noTools'), t(isHooks() ? 'hookUnknown' : 'noToolsDetail')));
+}
+function monitorSelector() {
+  const source = h('select', { id: 'monitor-source', testId: 'monitor-source', disabled: connecting, onChange: e => selectSource({ mode: e.target.value, endpoint: snapshot.source.endpoint }) },
+    [['work-hooks', 'hooksTitle'], ['local', 'logs'], ['demo', 'demoTitle'], ...(snapshot.source.mode === 'app-server' ? [['app-server', 'rpc']] : [])].map(([value, key]) => h('option', { value }, t(key))));
+  source.value = snapshot.source.mode;
+  const list = snapshot.sessions || [];
+  const select = h('select', { id: 'monitor-session', testId: 'monitor-session', disabled: connecting || !list.length, onChange: e => selectSource({ mode: snapshot.source.mode, id: e.target.value, endpoint: snapshot.source.endpoint }) },
+    !list.length ? h('option', { value: '' }, t(snapshot.source.mode === 'demo' ? 'demo' : 'noSessions')) : null,
+    list.map(s => h('option', { value: s.id }, `${isHooks() ? originLabel(s.origin) : s.title || t('currentTask')} · ${s.id} · ${date(s.updatedAt)}`)));
+  if (snapshot.task.id && !list.some(s => s.id === snapshot.task.id) && snapshot.source.mode !== 'demo') select.append(h('option', { value: snapshot.task.id }, `${snapshot.task.id} · ${t('unlistedSession')}`));
+  select.value = snapshot.source.mode === 'demo' ? '' : snapshot.task.id;
+  return h('section', { className: 'monitor-selector' }, h('label', { for: 'monitor-source' }, t('source'), source), h('label', { for: 'monitor-session' }, t('selectedTask'), select), h('small', {}, t('autoDiscoverHint')));
+}
+function monitorCard() {
+  const m = displayMonitor(), task = snapshot.task;
+  const active = ['tool_running', 'turn_running'].includes(m.status);
+  const step = task.plan.find(p => p.status === 'inProgress');
+  return h('section', { className: `monitor-card ${active ? 'observed-active' : ''}` },
+    h('div', { className: 'monitor-top' }, h('div', {}, h('p', { className: 'eyebrow' }, t('agentStatus')), h('h2', { testId: 'monitor-status' }, h('span', { className: 'status-dot' }), t(m.status))), badge(snapshot.source.mode === 'demo' ? t('demo') : isHooks() ? originLabel(snapshot.source.origin) : 'Codex', snapshot.source.mode === 'demo' ? 'awaiting_human' : 'unknown')),
+    h('h3', { className: 'monitor-title' }, isHooks() ? t('hookSession') : language === 'en' && task.titleEn ? task.titleEn : task.title || t('noTask')),
+    h('p', { className: 'monitor-activity', testId: 'monitor-activity' }, m.toolName ? `${t('latestTool')}: ${m.toolName} · ${t(m.outcome)}` : step ? `${t('currentStep')}: ${step.step}` : t(isHooks() ? 'workContentUnknown' : 'noActivityDetail')),
+    h('div', { className: 'monitor-meta' }, h('code', {}, task.id || '—'), h('span', {}, `${t('observedActivityAt')}: ${date(m.at)}`)),
+    h('p', { className: 'monitor-note' }, t('observationHint')));
+}
+function displayMonitor() {
+  const m = snapshot.monitor;
+  if (!streamConnected) return { ...m, status: 'feed_unavailable' };
+  const terminal = ['turn_completed', 'turn_interrupted', 'turn_failed', 'turn_stopped'].includes(m.observedStatus);
+  const age = Date.now() - Date.parse(m.at);
+  if (snapshot.source.mode !== 'demo' && snapshot.source.connected && !terminal && m.at && (!Number.isFinite(age) || age < 0 || age > m.staleAfterMs)) return { ...m, status: 'no_recent_evidence' };
+  return m;
+}
+function refreshMonitorCard() {
+  // This text-only region is separate from the focused source/session controls.
+  if (view === 'overview') document.querySelector('.monitor-card')?.replaceWith(monitorCard());
+}
+function progressMeasures() {
+  const p = snapshot.progress;
+  return h('section', { className: 'progress-measures' },
+    h('div', { className: 'progress-measure' }, h('h3', {}, t('overallProgress')), h('strong', { testId: 'overall-progress' }, t('unknown')), h('p', {}, t('overallHint'))),
+    h('div', { className: 'progress-measure' }, h('h3', {}, t('planProgress')), h('strong', { testId: 'plan-progress' }, p.plan.total ? `${p.plan.completed} / ${p.plan.total}` : t('unknown')), h('p', {}, t('planProgressHint'))),
+    h('div', { className: 'progress-measure' }, h('h3', {}, t('progress')), h('strong', { testId: 'coverage-value' }, p.acceptance.percent == null ? '—' : `${p.acceptance.percent}%`), h('p', {}, p.acceptance.total ? `${p.acceptance.met} / ${p.acceptance.total} · ${t('criteriaMet')}` : t('noCriteria')), button(t('acceptance') + ' ↗', () => navigate('acceptance'), { kind: 'link' })));
 }
 function replayControls() {
   if (!snapshot.replay) return null;
@@ -85,14 +127,12 @@ function replayControls() {
 }
 function overviewView() {
   const s = snapshot, u = s.task.usage;
-  return [pageHeading(t('overview'), t('subheading'), button(t('acceptance'), () => navigate('acceptance'), { kind: 'primary', icon: 'arrow' })), sourceBanner(),
-    h('section', { className: 'task-heading' }, h('div', {}, h('div', { className: 'eyebrow' }, t('currentTask')), h('h2', {}, isHooks() ? t('hookSession') : language === 'en' && s.task.titleEn ? s.task.titleEn : s.task.title || t('noTask')), h('p', { className: 'task-meta mono' }, s.task.id ? (isHooks() ? s.task.id : s.task.id.slice(0, 18) + '…') : '—', h('span', {}, ' / '), s.task.model || t('unknown'))), h('div', { className: 'source-state' }, badge(s.source.connected ? t(s.source.mode === 'demo' ? 'demo' : isHooks() ? 'hookReceived' : 'live') : t('disconnected'), s.source.connected ? 'auto_verified' : 'unknown'), h('span', { className: 'tiny' }, `${t('lastEvent')}: ${date(s.task.lastEventAt)}`))),
-    isHooks() ? hookStatus() : null,
-    h('div', { className: 'summary-grid' }, progressCard(), h('section', { className: 'card status-card' }, h('div', { className: 'card-heading' }, h('div', {}, h('h2', {}, t('acceptance')), h('p', {}, t('acceptanceHint')))), stateSummary())),
+  return [pageHeading(t('overview'), t('subheading')), monitorSelector(), monitorCard(), progressMeasures(),
+    h('div', { className: 'content-grid' }, toolsCard(), eventsCard(true)), planCard(),
     h('section', { className: 'metrics-row' }, metrics(t('usage'), numeric(u.total), t('usageHint')), metrics(t('lastTokens'), numeric(u.last), `${t('context')}: ${numeric(u.contextWindow)}`), metrics(t('elapsed'), elapsed(), s.source.mode === 'demo' ? t('simulationTime') : t('timeHint'))),
     h('p', { className: 'metric-footnote' }, t('exactContext') + ' · ' + t('contextHint')),
-    h('div', { className: 'content-grid' }, planCard(), toolsCard()),
-    h('div', { className: 'content-grid lower-grid' }, gitCard(true), eventsCard(true)), replayControls(), diagnostics()];
+    sourceBanner(), isHooks() ? hookStatus() : null,
+    h('div', { className: 'content-grid lower-grid' }, gitCard(true), h('section', { className: 'card status-card' }, h('div', { className: 'card-heading' }, h('div', {}, h('h2', {}, t('acceptance')), h('p', {}, t('acceptanceHint')))), stateSummary())), replayControls(), diagnostics()];
 }
 function acceptanceView() {
   const rows = snapshot.acceptance.criteria;
@@ -126,8 +166,8 @@ function testsCard() {
 }
 function evidenceView() { return [pageHeading(t('evidence'), t('acceptanceHint')), sourceBanner(), h('p', { className: 'workspace-path' }, t('workspacePath'), h('code', {}, snapshot.workspace || (snapshot.source.mode === 'demo' ? t('demo') : t('unknown')))), h('div', { className: 'content-grid' }, gitCard(), testsCard()), diagnostics()]; }
 function eventRows(compact) {
-  const events = [...snapshot.task.events].reverse().filter(e => (!errorFilter || e.status === 'failed') && (!eventFilter || JSON.stringify(e).toLowerCase().includes(eventFilter.toLowerCase()))).slice(0, compact ? 4 : 160);
-  return events.length ? h('div', { className: 'event-list' }, events.map(e => button(h('span', { className: 'event-layout' }, h('span', { className: `event-mark ${e.status || e.kind}` }), h('span', { className: 'event-main' }, h('strong', {}, e.name || ({ usage: t('usage'), plan: t('plan'), task: t('currentTask'), turn: t('stage'), phase: t('stage') })[e.kind] || e.kind), h('small', {}, e.text?.split('\n')[0].slice(0, 110) || e.title || t(e.status || e.phase || e.kind))), h('time', { className: 'mono tiny' }, date(e.at))), () => showDialog(e.name || e.kind, h('pre', {}, JSON.stringify(e, null, 2)), null, t('close')), { className: 'event-row', testId: e.kind === 'hook' ? `hook-${e.name}` : undefined }))) : empty(t('noEvents'), t(isHooks() ? 'hookWaiting' : 'eventHint'));
+  const events = [...snapshot.task.events].reverse().filter(e => (!errorFilter || e.status === 'failed' || e.metadata?.tool_status === 'failed') && (!eventFilter || JSON.stringify(e).toLowerCase().includes(eventFilter.toLowerCase()))).slice(0, compact ? 4 : 160);
+  return events.length ? h('div', { className: 'event-list' }, events.map(e => button(h('span', { className: 'event-layout' }, h('span', { className: `event-mark ${e.status || e.kind}` }), h('span', { className: 'event-main' }, h('strong', {}, e.name || ({ usage: t('usage'), plan: t('plan'), task: t('currentTask'), turn: t('stage'), phase: t('stage') })[e.kind] || e.kind), h('small', {}, e.metadata?.tool_name ? `${e.metadata.tool_name} · ${t(e.metadata.tool_status)}` : e.text?.split('\n')[0].slice(0, 110) || e.title || t(e.status || e.phase || e.kind))), h('time', { className: 'mono tiny' }, date(e.at))), () => showDialog(e.name || e.kind, h('pre', {}, JSON.stringify(e, null, 2)), null, t('close')), { className: 'event-row', 'data-event-id': e.id, testId: e.kind === 'hook' ? `hook-${e.name}` : undefined }))) : empty(t('noEvents'), t(isHooks() ? 'hookWaiting' : 'eventHint'));
 }
 function eventsCard(compact = false) { return card(t(compact ? 'recentEvents' : 'events'), t('eventHint'), eventRows(compact), compact ? button(t('allEvents'), () => navigate('events'), { kind: 'link' }) : null); }
 function eventsView() {
@@ -152,7 +192,7 @@ function hookAttribution() {
 }
 function connectionView() {
   const endpoint = h('input', { type: 'text', value: endpointDraft || snapshot.source.endpoint || 'ws://127.0.0.1:4500', 'aria-label': t('endpoint'), id: 'endpoint', spellcheck: false, onInput: e => { endpointDraft = e.target.value; } });
-  const list = isHooks() ? snapshot.hookSessions : sessions;
+  const list = snapshot.source.mode === 'demo' ? sessions : snapshot.sessions || sessions;
   return [pageHeading(t('sourceHeading'), t('sourceHint')), h('div', { className: 'connection-grid' },
     card(t('hooksTitle'), t('hooksDetail'), h('div', { className: 'connection-content' }, badge(t('experimental'), 'awaiting_human'), button(t('observeHooks'), () => selectSource({ mode: 'work-hooks' }), { kind: 'primary', disabled: connecting, testId: 'connect-hooks' }))),
     card(t('logs'), t('logsDetail'), h('div', { className: 'connection-content' }, badge(t('readonly'), 'auto_verified'), h('div', { className: 'button-group' }, button(t('connectLocal'), () => selectSource({ mode: 'local' }), { kind: 'primary', disabled: connecting, testId: 'connect-local' }), button(t('discover'), loadSessions, { kind: 'quiet' })))),
@@ -181,8 +221,15 @@ async function boot() {
     stream.onerror = () => { streamConnected = false; render(); };
     stream.addEventListener('snapshot', event => {
       const next = JSON.parse(event.data), nextSignature = JSON.stringify({ ...next, observedAt: null }); snapshot = next;
-      if (signature !== nextSignature) { signature = nextSignature; if ((view !== 'connection' || isHooks()) && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) render(); }
+      if (signature !== nextSignature) { signature = nextSignature; if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) render(); else refreshMonitorCard(); }
     });
+    document.addEventListener('focusout', () => setTimeout(() => { if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) && !document.querySelector('dialog[open]')) render(); }, 0));
   } catch (e) { document.getElementById('app').replaceChildren(empty(t('transportError'), e.message, button(t('connect'), boot, { kind: 'primary' }))); }
 }
 boot();
+// Expire a cached activity even when an open SSE connection silently stops delivering.
+setInterval(() => {
+  if (!snapshot || view !== 'overview') return;
+  const label = document.querySelector('[data-testid="monitor-status"]');
+  if (label && label.textContent !== t(displayMonitor().status)) refreshMonitorCard();
+}, 1000);

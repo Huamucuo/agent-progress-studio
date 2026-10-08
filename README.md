@@ -2,13 +2,21 @@
 
 **See the work. Inspect the evidence. Decide what is done.**
 
-[简体中文](README.zh-CN.md) · Version 0.1.1-rc.1 · MIT · Local Codex + Work Hook experiment
+[简体中文](README.zh-CN.md) · Version 0.1.1-rc.2 · MIT · Local Codex + Work Hook experiment
 
 An original, local browser dashboard for coding-agent observability. It separates an agent's activity and self-reported plan from verifiable acceptance conditions. No production dependencies, accounts, API keys, telemetry or cloud service.
 
-**Development branch: Work locally Hook experiment.** An optional, separately installed and trusted metadata probe now feeds the dashboard. It discovers session IDs and shows real lifecycle callbacks; product labels require user confirmation. Plans, tokens and acceptance remain unknown for this source. [Setup, actual host findings and removal](docs/WORK-HOOKS.md). Start with `start.cmd --work-hooks` after configuring the probe. The original V0.1.0 release ZIP remains unchanged.
+**Development branch: Work locally Hook experiment.** An optional, separately installed and trusted metadata probe now feeds the dashboard. It discovers session IDs and shows real lifecycle callbacks, tool names and explicit structured outcomes; product labels require user confirmation. Plans, tokens and acceptance remain unknown for this source. [Setup, actual host findings and removal](docs/WORK-HOOKS.md). Start with `start.cmd --work-hooks` after configuring the probe. The original V0.1.0 release ZIP remains unchanged.
 
 This candidate is held for incremental source/license review and user acceptance. The reported V0.1 audit approval applies only to the baseline and its original ZIP. [Candidate review scope](docs/INCREMENTAL-REVIEW.md).
+
+## Monitor a task
+
+Use the **source and session selectors on the home page**. Codex logs and local Hook sessions refresh every two seconds while selected; new arrivals do not replace your selection. The first session arriving at an empty source is selected automatically. Activity is the last observed event, not a heartbeat: after 30 seconds without new activity evidence the running state becomes unknown. A Stop or completed turn does not prove the software task is finished.
+
+Three measures remain separate: **overall task progress** is unknown without a reliable remaining-work model; **plan progress** counts completed / reported steps; **acceptance pass rate** uses the weighted evidence rules below. Tool counts contribute to none of them. Tools and recent events precede the supporting Git, tests and acceptance views.
+
+Work monitoring is partial: task text, structured plans, tokens, exact context, workspace and task acceptance are not collected by this opt-in probe. Five event types were observed in the user's Windows Work locally tests; the first attempt at the later tool test had a host error, and retry produced PreToolUse, PostToolUse and Stop. See the measured boundary, not test totals, in [WORK-HOOKS](docs/WORK-HOOKS.md).
 
 ## Start on Windows
 

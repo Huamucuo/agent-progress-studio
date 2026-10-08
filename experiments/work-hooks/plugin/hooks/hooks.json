@@ -1,5 +1,18 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "commandWindows": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT,'hooks','record-event.js')).run()\"",
+            "type": "command",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
@@ -53,5 +66,5 @@
       }
     ]
   },
-  "description": "Records only event type, session ID, turn ID and recorder timestamp. No prompts, tool data, transcript reads or network."
+  "description": "Records event/session/turn/time metadata, plus authorized tool names and explicit outcome flags. No prompts, tool inputs/outputs, transcript reads, steering or network."
 }

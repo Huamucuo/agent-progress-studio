@@ -9,6 +9,7 @@ process.chdir(root);
 const before = await sourceFingerprint(root);
 const jobs = [
   ['engine', ['--test', 'tests/core.test.mjs']],
+  ['monitor', ['--test', 'tests/monitor.test.mjs']],
   ['collectors', ['--test', 'tests/collectors.test.mjs']],
   ['protocol', ['--test', 'tests/app-server.test.mjs']],
   ['service', ['--test', 'tests/server.test.mjs']],

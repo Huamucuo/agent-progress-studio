@@ -6,7 +6,7 @@ The receiver and bilingual UI are now implemented in the development branch. See
 
 Baseline: `5e2afd02cc9305da13f19336b7dd639e54937d85` (V0.1.0). Development branch: `work-locally-hooks-mvp`.
 
-The original recorder keeps only `event_type`, `session_id`, `turn_id`, and its UTC `timestamp`. It never opens transcripts or sends network requests. Standard Hook input can contain private text; all fields outside that allowlist are discarded without logging. Missing turn IDs remain null. A Stop event means that a turn stopped, not that an acceptance condition passed.
+Recorder v0.0.2 keeps `event_type`, `session_id`, nullable `turn_id`, and its UTC `timestamp`. With explicit user authorization, PreToolUse/PostToolUse also keep `tool_name` and `tool_status` (started/succeeded/failed/unknown). It reads only top-level numeric exit_code/exitCode or boolean isError to derive an outcome; free-form output is not parsed. It never opens transcripts or sends network requests. Standard Hook input can contain private text; all fields outside that allowlist are discarded without logging. Missing turn IDs remain null. A Stop event means that a turn stopped, not that an acceptance condition passed.
 
 Copy this `plugin/` to a private staging directory and create a **local, untracked** `settings.json` inside it:
 
@@ -16,9 +16,9 @@ Copy this `plugin/` to a private staging directory and create a **local, untrack
 
 Review the exact files before installing through a personal/repo marketplace and the official plugin installer. This source does not register or install itself. No credentials, user-specific configuration, runtime Hook events, or trust state belong in Git. Installation, enablement and trust are separate. Never use a trust-bypass flag.
 
-The probe registers SessionStart, UserPromptSubmit, PostToolUse and Stop as background command hooks with a three-second host timeout and two-second recorder deadline. It discards inputs above 256 KiB and stops writing at 10,000 directory entries. These bounds and background scheduling can drop events; this experiment is not a complete audit log.
+The probe registers SessionStart, UserPromptSubmit, PreToolUse, PostToolUse and Stop as background command hooks with a three-second host timeout and two-second recorder deadline. It discards inputs above 256 KiB and stops writing at 10,000 directory entries. These bounds and background scheduling can drop events; this experiment is not a complete audit log.
 
-On the tested runtime 0.162.0-alpha.2, a portable root manifest with `extensions.com.openai.hooks` returned no Hook summaries. The compatibility-only `.codex-plugin/plugin.json` loaded all four definitions, initially `untrusted`. This is a local observation about the tested version, not a claim that portable manifests fail everywhere.
+On the tested runtime 0.162.0-alpha.2, a portable root manifest with `extensions.com.openai.hooks` returned no Hook summaries. The compatibility-only `.codex-plugin/plugin.json` loaded the original four definitions, initially `untrusted`; v0.0.2 adds a separately trusted fifth PreToolUse definition. This is a local observation about the tested version, not a claim that portable manifests fail everywhere.
 
 Hooks share a runtime across local Work and Codex. A session ID alone does not prove which product surface created it. Keep source attribution unknown until the new Work test is correlated explicitly; never label every callback as Work.
 

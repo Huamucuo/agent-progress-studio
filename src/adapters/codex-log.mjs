@@ -5,7 +5,7 @@ import { createState, reduceEvent } from '../core/engine.mjs';
 import { normalizeRecord } from './normalize.mjs';
 
 /** Bounded metadata discovery. Never opens auth.json, configuration or arbitrary databases. */
-export async function discoverSessions(codexHome, limit = 60) {
+export async function discoverSessions(codexHome, limit = 60, excludedIds = new Set()) {
   const files = [];
   async function walk(dir, depth) {
     if (depth > 4 || files.length >= 300) return;
@@ -16,7 +16,11 @@ export async function discoverSessions(codexHome, limit = 60) {
       const file = path.join(dir, entry.name);
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) await walk(file, depth + 1);
-      else if (entry.isFile() && entry.name.endsWith('.jsonl')) files.push(file);
+      else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+        const id = entry.name.match(/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\.jsonl$/i)?.[1];
+        // A known Work rollout must not be opened or consume the candidate limit.
+        if (!excludedIds.has(id)) files.push(file);
+      }
     }
   }
   await walk(path.join(codexHome, 'sessions'), 0);
@@ -25,10 +29,18 @@ export async function discoverSessions(codexHome, limit = 60) {
     let handle;
     try {
       handle = await open(file, 'r'); const buf = Buffer.alloc(256 * 1024);
-      const { bytesRead } = await handle.read(buf, 0, buf.length, 0);
+      let bytesRead = 0;
+      if (excludedIds.size && !/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.jsonl$/i.test(file)) {
+        // Legacy/custom names do not identify the session. Read only the header,
+        // without buffering the following private conversation before exclusion.
+        while (bytesRead < buf.length) {
+          const read = await handle.read(buf, bytesRead, 1, bytesRead);
+          if (!read.bytesRead || buf[bytesRead++] === 10) break;
+        }
+      } else ({ bytesRead } = await handle.read(buf, 0, buf.length, 0));
       const first = buf.subarray(0, bytesRead).toString('utf8').split('\n')[0];
       const row = JSON.parse(first);
-      if (row.type !== 'session_meta' || !row.payload?.id) continue;
+      if (row.type !== 'session_meta' || !row.payload?.id || excludedIds.has(row.payload.id)) continue;
       const info = await handle.stat();
       sessions.push({ id: row.payload.id, cwd: row.payload.cwd || '', path: file, updatedAt: info.mtime.toISOString(), version: row.payload.cli_version || null, title: path.basename(row.payload.cwd || file) });
     } catch { /* A partial/unreadable metadata line is not a session. */ }

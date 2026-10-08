@@ -2,14 +2,24 @@
 const { readFile, mkdir, readdir, writeFile, rename } = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const allowed = new Set(['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'Stop']);
+const allowed = new Set(['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']);
 const identifier = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
 
 function projectEvent(input) {
   if (!input || !allowed.has(input.hook_event_name) || !identifier(input.session_id)) return null;
   if (input.turn_id != null && !identifier(input.turn_id)) return null;
-  return { event_type: input.hook_event_name, session_id: input.session_id,
+  const event = { event_type: input.hook_event_name, session_id: input.session_id,
     turn_id: input.turn_id ?? null, timestamp: new Date().toISOString() };
+  if (['PreToolUse', 'PostToolUse'].includes(input.hook_event_name)) {
+    event.tool_name = typeof input.tool_name === 'string' && /^[A-Za-z][A-Za-z0-9_.:/-]{0,159}$/.test(input.tool_name) ? input.tool_name : null;
+    event.tool_status = input.hook_event_name === 'PreToolUse' ? 'started' : 'unknown';
+    if (input.hook_event_name === 'PostToolUse' && input.tool_response && typeof input.tool_response === 'object') {
+      const response = input.tool_response, exitCode = response.exit_code ?? response.exitCode;
+      if (Number.isInteger(exitCode)) event.tool_status = exitCode === 0 ? 'succeeded' : 'failed';
+      else if (typeof response.isError === 'boolean') event.tool_status = response.isError ? 'failed' : 'succeeded';
+    }
+  }
+  return event;
 }
 
 async function run() {

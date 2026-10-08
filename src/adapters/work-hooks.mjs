@@ -2,20 +2,26 @@ import { lstat, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createState, reduceEvent } from '../core/engine.mjs';
 
-const phases = { SessionStart: 'session_observed', UserPromptSubmit: 'prompt_observed', PostToolUse: 'tool_observed', Stop: 'stop_observed' };
+const phases = { SessionStart: 'session_observed', UserPromptSubmit: 'prompt_observed', PreToolUse: 'tool_start_observed', PostToolUse: 'tool_observed', Stop: 'stop_observed' };
 const filenamePattern = /^\d{13}-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.json$/;
 export const validHookId = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
 const fields = ['event_type', 'session_id', 'timestamp', 'turn_id'];
+const toolFields = ['event_type', 'session_id', 'timestamp', 'tool_name', 'tool_status', 'turn_id'];
 function validRecord(value) {
+  const keys = value && typeof value === 'object' ? JSON.stringify(Object.keys(value).sort()) : '';
+  const metadataOnly = keys === JSON.stringify(fields);
+  const toolMetadata = keys === JSON.stringify(toolFields) && ['PreToolUse', 'PostToolUse'].includes(value.event_type)
+    && (value.tool_name === null || (typeof value.tool_name === 'string' && /^[A-Za-z][A-Za-z0-9_.:/-]{0,159}$/.test(value.tool_name)))
+    && (value.event_type === 'PreToolUse' ? value.tool_status === 'started' : ['succeeded', 'failed', 'unknown'].includes(value.tool_status));
   return value && typeof value === 'object' && !Array.isArray(value)
-    && JSON.stringify(Object.keys(value).sort()) === JSON.stringify(fields)
+    && (metadataOnly || toolMetadata)
     && Object.hasOwn(phases, value.event_type) && validHookId(value.session_id)
     && (value.turn_id === null || validHookId(value.turn_id))
     && typeof value.timestamp === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value.timestamp)
     && Number.isFinite(Date.parse(value.timestamp));
 }
 
-/** Reads only the opt-in probe's four-field spool. Product origin is never inferred. */
+/** Reads only the opt-in probe's metadata allowlist. Product origin is never inferred. */
 export class WorkHookSource {
   constructor(directory, id = '') {
     this.directory = directory; this.id = id; this.state = createState(id); this.sessions = [];

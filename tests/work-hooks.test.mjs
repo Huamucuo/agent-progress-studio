@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WorkHookSource } from '../src/adapters/work-hooks.mjs';
+import { discoverSessions } from '../src/adapters/codex-log.mjs';
 import { createApplication } from '../src/server.mjs';
 const recorder = fileURLToPath(new URL('../experiments/work-hooks/plugin/hooks/record-event.js', import.meta.url));
 const { projectEvent } = createRequire(import.meta.url)(recorder);
@@ -24,7 +25,20 @@ test('projection keeps only four metadata fields and never supplies a missing tu
 });
 
 test('unsupported events and invalid identifiers produce no record', () => {
-  for (const input of [null, {}, { hook_event_name: 'PreToolUse', session_id: session }, { hook_event_name: 'Stop', session_id: '../private' }, { hook_event_name: 'Stop', session_id: session, turn_id: { secret: 'PRIVATE_' } }]) assert.equal(projectEvent(input), null);
+  for (const input of [null, {}, { hook_event_name: 'PermissionRequest', session_id: session }, { hook_event_name: 'Stop', session_id: '../private' }, { hook_event_name: 'Stop', session_id: session, turn_id: { secret: 'PRIVATE_' } }]) assert.equal(projectEvent(input), null);
+});
+
+test('authorized tool metadata excludes payloads and never guesses success from PostToolUse', () => {
+  const input = { hook_event_name: 'PostToolUse', session_id: session, turn_id: turn, tool_name: 'Bash', ...privateFixture };
+  const unknown = projectEvent(input);
+  assert.equal(unknown.tool_name, 'Bash'); assert.equal(unknown.tool_status, 'unknown');
+  assert.deepEqual(Object.keys(unknown).sort(), ['event_type', 'session_id', 'timestamp', 'tool_name', 'tool_status', 'turn_id']);
+  assert.equal(projectEvent({ ...input, tool_response: { exit_code: 1, stdout: 'PRIVATE_OUTPUT' } }).tool_status, 'failed');
+  assert.equal(projectEvent({ ...input, tool_response: { exit_code: 0 } }).tool_status, 'succeeded');
+  assert.equal(projectEvent({ ...input, tool_response: { isError: false } }).tool_status, 'succeeded');
+  assert.equal(projectEvent({ ...input, tool_response: 'exit_code: 0, PRIVATE_OUTPUT' }).tool_status, 'unknown');
+  assert.equal(projectEvent({ ...input, hook_event_name: 'PreToolUse' }).tool_status, 'started');
+  assert.doesNotMatch(JSON.stringify(unknown), /PRIVATE_/);
 });
 
 async function fixture(t) {
@@ -45,16 +59,16 @@ async function invoke(root, payload) {
   return { code: await exit, stdout, stderr };
 }
 
-test('real recorder process writes all four event types without private content or injected instructions', async t => {
+test('recorder subprocess writes all five event types without private content or injected instructions', async t => {
   const { root, eventsDir } = await fixture(t);
-  for (const type of ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'Stop']) {
+  for (const type of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) {
     const result = await invoke(root, JSON.stringify({ hook_event_name: type, session_id: session, turn_id: turn, ...privateFixture }));
     assert.equal(result.code, 0); assert.equal(result.stderr, ''); assert.equal(result.stdout, '{}');
   }
-  const names = await readdir(eventsDir); assert.equal(names.length, 4);
+  const names = await readdir(eventsDir); assert.equal(names.length, 5);
   const events = await Promise.all(names.map(async name => JSON.parse(await readFile(path.join(eventsDir, name), 'utf8'))));
-  assert.deepEqual(events.map(e => e.event_type).sort(), ['PostToolUse', 'SessionStart', 'Stop', 'UserPromptSubmit']);
-  for (const e of events) { assert.deepEqual(Object.keys(e).sort(), ['event_type', 'session_id', 'timestamp', 'turn_id']); assert.equal(e.session_id, session); assert.equal(e.turn_id, turn); }
+  assert.deepEqual(events.map(e => e.event_type).sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'Stop', 'UserPromptSubmit']);
+  for (const e of events) { assert.deepEqual(Object.keys(e).sort(), ['PreToolUse', 'PostToolUse'].includes(e.event_type) ? ['event_type', 'session_id', 'timestamp', 'tool_name', 'tool_status', 'turn_id'] : ['event_type', 'session_id', 'timestamp', 'turn_id']); assert.equal(e.session_id, session); assert.equal(e.turn_id, turn); }
   assert.doesNotMatch(JSON.stringify(events), /PRIVATE_/);
 });
 
@@ -167,6 +181,11 @@ test('live service separates Hook metadata from Codex evidence and persists expl
   assert.equal((await post('/api/hook-origin', { sessionId: session, origin: 'work-local' })).status, 200);
   assert.equal(server.service.snapshot.source.origin, 'work-local'); assert.equal(server.service.snapshot.source.attribution, 'user-confirmed');
   const persisted = JSON.parse(await readFile(path.join(root, 'data/hook-origins.json'), 'utf8')); assert.equal(persisted[session], 'work-local');
+  // Shared runtimes may also leave a JSONL header for Work. Do not relabel or read it as Codex content.
+  await writeFile(path.join(codexHome, 'sessions/work-mirror.jsonl'), JSON.stringify({ type: 'session_meta', payload: { id: session, cwd: root } }) + '\n' + JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'PRIVATE_WORK_CONTENT' } }) + '\n');
+  assert.equal((await server.service.discover()).some(s => s.id === session), false);
+  assert.equal((await post('/api/source', { mode: 'local', id: session })).status, 400);
+  assert.doesNotMatch(JSON.stringify(server.service.snapshot), /PRIVATE_WORK_CONTENT/);
   const restarted = await createApplication({ ...options, mode: 'work-hooks' }); t.after(() => restarted.close());
   assert.equal(restarted.service.snapshot.source.origin, 'work-local');
   assert.equal((await post('/api/hook-origin', { sessionId: 'not-found', origin: 'codex' })).status, 400);
@@ -178,4 +197,16 @@ test('live service separates Hook metadata from Codex evidence and persists expl
   assert.equal(server.service.snapshot.workspace, null); assert.equal(server.service.snapshot.source.origin, 'work-local');
   assert.equal((await post('/api/source', { mode: 'demo', scenario: 'showcase' })).status, 200);
   assert.equal(server.service.snapshot.source.mode, 'demo'); assert.equal(server.service.snapshot.acceptance.percent, 33.3);
+});
+
+test('known Work sessions are excluded before the Codex discovery limit', async t => {
+  const { root } = await fixture(t), folder = path.join(root, 'sessions'); await mkdir(folder);
+  const excluded = new Set();
+  for (let i = 0; i < 60; i++) {
+    const id = `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`; excluded.add(id);
+    await writeFile(path.join(folder, `rollout-${id}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { id } }) + '\nPRIVATE_BODY');
+  }
+  await writeFile(path.join(folder, 'older-codex.jsonl'), JSON.stringify({ type: 'session_meta', payload: { id: 'codex' } }) + '\n');
+  const { utimes } = await import('node:fs/promises'); await utimes(path.join(folder, 'older-codex.jsonl'), new Date(0), new Date(0));
+  assert.deepEqual((await discoverSessions(root, 60, excluded)).map(s => s.id), ['codex']);
 });

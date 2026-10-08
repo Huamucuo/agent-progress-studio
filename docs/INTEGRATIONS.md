@@ -30,7 +30,7 @@ Sources: [MCP quickstart](https://developers.openai.com/plugins/build/app-quicks
 
 Hooks run commands or MCP tools at lifecycle points such as SessionStart, PreToolUse, PostToolUse and Stop. Installed plugins can bundle them, but non-managed definitions need trust review. Background hooks have different notification visibility. A plugin package does not deploy local scripts to every execution environment.
 
-The original V0.1 release installs **no Hook**. The `work-locally-hooks-mvp` development branch adds a separately authorized, bounded asynchronous metadata recorder and receiver. All four target events were observed in controlled local tests after user trust; the client did not need to restart in this test. Product labels remain user-confirmed because callbacks carry no product field. It does not block/rewrite tools, read transcripts or make network requests. See [the experiment and measured limits](WORK-HOOKS.md).
+The original V0.1 release installs **no Hook**. The `work-locally-hooks-mvp` development branch adds a separately authorized, bounded asynchronous metadata recorder and receiver. The original four target events and subsequently authorized PreToolUse were observed in controlled local tests after user trust; the client did not need to restart in this test. Product labels remain user-confirmed because callbacks carry no product field. It does not block/rewrite tools, read transcripts or make network requests. See [the experiment and measured limits](WORK-HOOKS.md).
 
 Sources: [Hooks](https://learn.chatgpt.com/docs/hooks), [Package your plugin](https://developers.openai.com/plugins/build/plugins).
 

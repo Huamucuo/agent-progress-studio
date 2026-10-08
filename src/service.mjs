@@ -2,7 +2,7 @@ import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import { EventEmitter } from 'node:events';
-import { createState, safeText } from './core/engine.mjs';
+import { createState, safeText, monitorTask, progressSummary } from './core/engine.mjs';
 import { evaluateAcceptance } from './core/acceptance.mjs';
 import { discoverSessions, LogSource } from './adapters/codex-log.mjs';
 import { AppServerSource } from './adapters/app-server.mjs';
@@ -28,7 +28,8 @@ export class StudioService extends EventEmitter {
     await this.select({ mode: this.mode });
   }
   async discover() {
-    this.sessions = await discoverSessions(this.codexHome);
+    const excluded = new Set(Object.keys(this.hookOrigins).filter(id => this.hookOrigin(id) === 'work-local'));
+    this.sessions = await discoverSessions(this.codexHome, 60, excluded);
     return this.sessions.map(({ path: hidden, ...s }) => ({ ...s, current: s.id === process.env.CODEX_THREAD_ID }));
   }
   select(config) {
@@ -68,6 +69,13 @@ export class StudioService extends EventEmitter {
   }
   refresh() { return this.run(() => this.refreshInternal()); }
   async refreshInternal({ advance = false } = {}) {
+    if (this.mode === 'local') {
+      await this.discover();
+      if (!this.source && this.sessions.length) {
+        this.selected = this.sessions.find(s => s.id === process.env.CODEX_THREAD_ID) || this.sessions[0];
+        this.source = new LogSource(this.selected.path, this.selected.id);
+      }
+    }
     let task = this.source?.state || createState();
     try {
       if (this.mode !== 'demo' || advance) task = await this.source?.poll() || task;
@@ -78,17 +86,21 @@ export class StudioService extends EventEmitter {
     this.evidence = this.mode === 'demo' ? this.source.evidence() : await collectEvidence(this.workspace);
     this.reviewKey = digest(`${this.mode}:${task.id}:${this.workspace || ''}:${this.evidence.manifest?.taskId || ''}`);
     const acceptance = evaluateAcceptance(this.evidence.manifest, this.evidence, this.reviews[this.reviewKey] || {});
+    const connected = !!this.source && !this.error && (this.mode !== 'work-hooks' || this.source.received);
+    const sessions = this.mode === 'work-hooks' ? this.source.sessions.map(s => ({ ...s, origin: this.hookOrigin(s.id) }))
+      : this.mode === 'app-server' ? this.source.sessions : this.mode === 'local' ? this.sessions.map(({ path: hidden, ...s }) => ({ ...s, current: s.id === process.env.CODEX_THREAD_ID })) : [];
     this.snapshot = {
-      schemaVersion: 1, version: '0.1.1-rc.1', observedAt: new Date().toISOString(),
-      source: { mode: this.mode, connected: !!this.source && !this.error && (this.mode !== 'work-hooks' || this.source.received), error: this.error,
+      schemaVersion: 1, version: '0.1.1-rc.2', observedAt: new Date().toISOString(),
+      source: { mode: this.mode, connected, error: this.error,
         label: this.mode === 'demo' ? 'SIMULATED' : this.mode === 'work-hooks' ? 'Local lifecycle Hooks · metadata only' : this.mode === 'local' ? 'Codex JSONL · best effort' : 'Codex app-server · read polling',
         origin: this.mode === 'work-hooks' ? this.hookOrigin(task.id) : this.mode === 'demo' ? 'simulated' : 'codex',
         attribution: this.mode === 'work-hooks' ? (this.hookOrigin(task.id) !== 'unknown' ? 'user-confirmed' : 'unconfirmed') : 'adapter',
         endpoint: this.mode === 'app-server' ? this.source?.endpoint : null,
         diagnostics: this.source?.diagnostics || {}, capabilities: { history: true, notifications: this.mode === 'app-server', approvals: false },
         selection: this.mode === 'work-hooks' ? (task.id ? 'selected-session' : 'none') : this.selected?.id === process.env.CODEX_THREAD_ID ? 'current-environment' : this.selected ? 'selected-session' : 'none' },
-      hookSessions: this.mode === 'work-hooks' ? this.source.sessions.map(s => ({ ...s, origin: this.hookOrigin(s.id) })) : [],
+      sessions, hookSessions: this.mode === 'work-hooks' ? sessions : [],
       workspace: this.workspace, task, acceptance, evidence: this.evidence,
+      monitor: monitorTask(task, { connected, mode: this.mode }), progress: progressSummary(task, acceptance),
       replay: this.mode === 'demo' ? { index: this.source.index, playing: this.source.playing, total: 9, scenario: this.source.scenario } : null
     };
     this.emit('snapshot', this.snapshot); return this.snapshot;

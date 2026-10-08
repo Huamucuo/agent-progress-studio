@@ -29,7 +29,7 @@ The collector owns parsing and transport. The reducer owns only task state. The 
 
 ## Core contracts
 
-Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific fields. Kinds: task, turn, phase, plan, tool, usage, message, warning, hook. Unsupported records, private reasoning and system/developer content are ignored. Hook events retain the four allowed metadata fields plus receiver timing; observed Stop is not mapped to task completion.
+Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific fields. Kinds: task, turn, phase, plan, tool, usage, message, warning, hook. Unsupported records, private reasoning and system/developer content are ignored. Hook events retain the four base metadata fields, optional authorized tool_name/tool_status, and receiver timing; observed Stop is not mapped to task completion.
 
 `reduceEvent(state,event)` returns a new bounded state. A new turn clears plan/tools and the last-request metric. Duplicate retained event IDs are ignored. Only 160 events and 40 tools are retained. Source gaps clear unprovable state; they do not carry an old completed status forward.
 
@@ -39,7 +39,7 @@ Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific 
 
 ## Collection and scope
 
-- Local logs: bounded discovery under one Codex data root; complete newline records only; UTF-8 chunk boundaries preserved; malformed records skipped with diagnostics. Poll every two seconds.
+- Local logs: bounded discovery under one Codex data root; complete newline records only; UTF-8 chunk boundaries preserved; malformed records skipped with diagnostics. Poll and rediscover every two seconds while selected. Snapshots include the current session list; new arrivals never steal an explicit selection.
 - App-server: literal loopback endpoint, initialize handshake, list/read method allowlist. Current-turn history only; unsolicited events must match the selected thread. No auto-resume or approval response.
 - Local Hooks: bounded nonrecursive metadata spool, independent from Codex logs. Discover session IDs without stealing selection. Product origin is unknown until explicitly labeled; Hook mode never inherits a workspace or acceptance evidence. [Detailed contract and limits](WORK-HOOKS.md).
 - Git: selected workspace must be the repository root. No optional index locks, textconv or external diff helpers. Only sanitized indexed paths enter the diff; sensitive paths are omitted before the command is constructed. Untracked files can be inspected as bounded text, but are not represented as tracked Git diffs.
@@ -64,3 +64,13 @@ No outbound runtime analytics or assets. Basic API-key/Bearer redaction is defen
 2-second polling favors portability over native file watchers. Fingerprinting intentionally errs toward unknown when limits or symlinks prevent a complete snapshot. A report attests a local producer's result for file contents; it is not a cryptographic proof of test honesty, coverage quality, dependency/runtime equivalence or resistance to deliberate tampering. Review substantial changes with the underlying files and tests.
 
 Runtime dependencies: none. Optional Playwright development dependency supplies real-browser verification. ES-module components avoid a build chain and can be bundled into a future MCP UI resource without coupling the core to a host SDK.
+
+## Monitor interpretation
+
+`monitorTask` derives last observed activity and its evidence time. A 30-second threshold downgrades nonterminal running evidence to unknown, never to failure or disconnected. `Stop`/completed-turn labels describe the last turn only. Hook callbacks are not paired: tool call IDs are outside the authorized collection scope, and asynchronous starts/returns may be delivered out of order. Missing structured outcome stays unknown.
+
+`progressSummary` keeps overall completion nullable and independent of agent-reported plan fractions and weighted acceptance. The homepage presents source/session selection, activity, three distinct measures, tools/events, then supporting evidence. No heartbeat or remaining-work estimate is invented.
+
+The browser also expires cached nonterminal observations with its own clock, so a stalled SSE feed cannot leave an old running label indefinitely. An SSE error replaces the main activity label with disconnected/current-activity-unknown. Demo review phases and timestamp-free app-server terminal history remain explicit; history without a completion timestamp does not acquire one.
+
+User-confirmed Work IDs are excluded from Codex discovery before the session limit. Standard rollout filenames allow exclusion before opening the file or consuming the 300-file candidate budget. With exclusions configured, custom filenames require a bounded header-only read before deciding whether they belong to Work; these legacy names are slower to discover. Unconfirmed shared-runtime sessions cannot be classified reliably by filename alone.

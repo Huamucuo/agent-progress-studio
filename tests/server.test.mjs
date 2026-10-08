@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createApplication } from '../src/server.mjs';
@@ -54,4 +54,25 @@ test('SSE sends an initial authoritative snapshot for reconnect recovery', async
   const reader = response.body.getReader(); const chunk = await reader.read(); controller.abort();
   const text = new TextDecoder().decode(chunk.value);
   assert.match(text, /event: snapshot/); assert.match(text, /"schemaVersion":1/);
+});
+
+test('Codex discovery runs during observation, follows the first arrival, and preserves explicit selection', async t => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'aps-discovery-'));
+  const logDir = path.join(dir, 'codex/sessions'); await mkdir(logDir, { recursive: true });
+  const app = await createApplication({ port: 0, mode: 'local', dataDir: path.join(dir, 'data'), codexHome: path.join(dir, 'codex'), interval: 0 });
+  t.after(async () => { await app.close(); await rm(dir, { recursive: true, force: true }); });
+  const row = (type, payload) => JSON.stringify({ timestamp: new Date().toISOString(), type, payload }) + '\n';
+  await writeFile(path.join(logDir, 'one.jsonl'), row('session_meta', { id: 'one', cwd: dir }));
+  await app.service.tick();
+  assert.equal(app.service.snapshot.task.id, 'one');
+  await writeFile(path.join(logDir, 'two.jsonl'), row('session_meta', { id: 'two', cwd: dir }));
+  await app.service.tick();
+  assert.deepEqual(app.service.snapshot.sessions.map(s => s.id).sort(), ['one', 'two']);
+  assert.equal(app.service.snapshot.task.id, 'one');
+  assert.equal(app.service.snapshot.sessions[0].path, undefined);
+  await app.service.select({ mode: 'local', id: 'two' });
+  await appendFile(path.join(logDir, 'two.jsonl'), row('event_msg', { type: 'user_message', message: 'Selected fixture live update' }));
+  await app.service.tick();
+  assert.equal(app.service.snapshot.task.title, 'Selected fixture live update');
+  assert.equal(app.service.snapshot.source.origin, 'codex');
 });
