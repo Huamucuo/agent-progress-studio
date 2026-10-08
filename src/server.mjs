@@ -35,12 +35,13 @@ export async function createApplication(options = {}) {
         if (url.pathname === '/api/source') return json(res, 200, await service.select(input));
         if (url.pathname === '/api/demo') return json(res, 200, await service.demo(input.action));
         if (url.pathname === '/api/review') return json(res, 200, await service.review(input));
+        if (url.pathname === '/api/hook-origin') return json(res, 200, await service.attributeHook(input));
         return json(res, 404, { error: 'Not found' });
       }
       if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
       if (url.pathname === '/api/bootstrap') return json(res, 200, { token, version: '0.1.0' });
       if (url.pathname === '/api/snapshot') return json(res, 200, service.snapshot);
-      if (url.pathname === '/api/sessions') return json(res, 200, { sessions: service.mode === 'app-server' ? service.source.sessions : await service.discover() });
+      if (url.pathname === '/api/sessions') return json(res, 200, { sessions: service.mode === 'work-hooks' ? service.snapshot.hookSessions : service.mode === 'app-server' ? service.source.sessions : await service.discover() });
       if (url.pathname === '/api/evidence') return json(res, 200, { text: await service.detail(url.searchParams.get('kind'), url.searchParams.get('id')) });
       if (url.pathname === '/api/export') { res.setHeader('Content-Disposition', 'attachment; filename="agent-progress-report.json"'); return json(res, 200, service.snapshot); }
       if (url.pathname === '/api/stream') {
@@ -67,7 +68,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const portText = option('--port') || process.env.APS_PORT || '4317', port = Number(portText);
   if (!Number.isInteger(port) || port < 1 || port > 65535) { console.error('Invalid --port'); process.exit(1); }
   try {
-    const app = await createApplication({ port, mode: args.includes('--demo') ? 'demo' : 'local', workspace: option('--workspace'), codexHome: option('--codex-home'), dataDir: option('--data-dir') });
+    const app = await createApplication({ port, mode: args.includes('--demo') ? 'demo' : args.includes('--work-hooks') ? 'work-hooks' : 'local', workspace: option('--workspace'), codexHome: option('--codex-home'), dataDir: option('--data-dir'), workHooksDir: option('--work-hooks-dir') });
     console.log(`Agent Progress Studio 0.1.0\nLocal dashboard: ${app.url}\nRead-only Codex observer. Press Ctrl+C to stop.`);
     const stop = async () => { await app.close(); process.exit(0); };
     process.on('SIGINT', stop); process.on('SIGTERM', stop);

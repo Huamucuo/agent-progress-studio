@@ -1,5 +1,7 @@
 # V0.1 engineering verification / 版本核验
 
+This document records the original V0.1 release baseline. For the subsequent Work locally Hook experiment and its separate live measurements, see [WORK-HOOKS](WORK-HOOKS.md). The old release ZIP and the development branch are distinct artifacts.
+
 Verified on **2026-10-09 (Asia/Shanghai)**, Windows, Node.js **24.17.0**, installed Microsoft Edge, Codex CLI **0.162.0-alpha.2**. This records executed engineering checks. User acceptance remains a separate, unapproved gate.
 
 本记录来自实际运行，没有代替用户进行人工验收。Node 22.15 是声明的最低版本，本次实际执行版本为 24.17.0；没有实测认证其他操作系统或全部 Codex 版本。

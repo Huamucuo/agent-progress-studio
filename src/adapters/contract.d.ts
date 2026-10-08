@@ -1,4 +1,4 @@
-/** Reserved interface for Work / MCP Apps. These hosts are not integrated in V0.1. */
+/** Reserved host interface for broader Work / MCP Apps integration; the local metadata Hook source is separate. */
 export interface ProgressSource {
   capabilities: { discover: boolean; notifications: boolean; history: boolean; usage: boolean; approvals: false };
   connect?(): Promise<unknown>;

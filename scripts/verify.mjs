@@ -11,7 +11,8 @@ const jobs = [
   ['engine', ['--test', 'tests/core.test.mjs']],
   ['collectors', ['--test', 'tests/collectors.test.mjs']],
   ['protocol', ['--test', 'tests/app-server.test.mjs']],
-  ['service', ['--test', 'tests/server.test.mjs']]
+  ['service', ['--test', 'tests/server.test.mjs']],
+  ['work-hooks', ['--test', 'tests/work-hooks.test.mjs']]
 ];
 if (process.argv.includes('--browser')) jobs.push(['browser', ['tests/browser.mjs']]);
 const tests = [], startedAt = new Date().toISOString(); let detail = '';

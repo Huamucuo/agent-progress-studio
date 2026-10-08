@@ -7,17 +7,24 @@ import { evaluateAcceptance } from './core/acceptance.mjs';
 import { discoverSessions, LogSource } from './adapters/codex-log.mjs';
 import { AppServerSource } from './adapters/app-server.mjs';
 import { DemoSource } from './adapters/demo.mjs';
+import { WorkHookSource, validHookId } from './adapters/work-hooks.mjs';
 import { collectEvidence, digest, readEvidence } from './collectors/evidence.mjs';
 
 export class StudioService extends EventEmitter {
   constructor(options) {
     super(); this.options = options; this.codexHome = options.codexHome || process.env.CODEX_HOME || path.join(homedir(), '.codex');
     this.dataDir = options.dataDir; this.reviews = {}; this.source = null; this.mode = options.mode || 'local'; this.queue = Promise.resolve(); this.sessions = [];
+    this.workHooksDir = options.workHooksDir || path.join(this.dataDir, 'work-hooks', 'events'); this.hookOrigins = {};
   }
   run(action) { const result = this.queue.then(action); this.queue = result.catch(() => {}); return result; }
+  hookOrigin(id) { return Object.hasOwn(this.hookOrigins, id) ? this.hookOrigins[id] : 'unknown'; }
   async init() {
     await mkdir(this.dataDir, { recursive: true });
     try { this.reviews = JSON.parse(await readFile(path.join(this.dataDir, 'reviews.json'), 'utf8')); } catch { this.reviews = {}; }
+    try {
+      const saved = JSON.parse(await readFile(path.join(this.dataDir, 'hook-origins.json'), 'utf8'));
+      this.hookOrigins = Object.fromEntries(Object.entries(saved).filter(([id, origin]) => validHookId(id) && ['work-local', 'codex'].includes(origin)));
+    } catch { this.hookOrigins = {}; }
     await this.select({ mode: this.mode });
   }
   async discover() {
@@ -35,6 +42,17 @@ export class StudioService extends EventEmitter {
         selected = config.id ? this.sessions.find(s => s.id === config.id) : this.sessions.find(s => s.id === process.env.CODEX_THREAD_ID) || this.sessions[0];
         if (config.id && !selected) throw new Error('Session no longer available; refresh discovery');
         if (selected) next = new LogSource(selected.path, selected.id);
+      } else if (config.mode === 'work-hooks') {
+        if (config.id !== undefined && !validHookId(config.id)) throw new Error('Invalid Hook session ID');
+        if (this.mode === 'work-hooks' && this.source instanceof WorkHookSource) {
+          await this.source.poll();
+          if (config.id && !this.source.sessions.some(s => s.id === config.id)) throw new Error('Hook session no longer available');
+          if (config.id) this.source.id = config.id;
+          return this.refreshInternal();
+        }
+        next = new WorkHookSource(this.workHooksDir, config.id);
+        await next.poll();
+        if (config.id && !next.received) throw new Error('Hook session no longer available');
       } else if (config.mode === 'app-server') {
         if (this.mode === 'app-server' && this.source?.endpoint === new URL(config.endpoint).href && config.id) {
           await this.source.select(config.id); this.selected = this.source.sessions.find(s => s.id === config.id); this.error = null;
@@ -56,23 +74,38 @@ export class StudioService extends EventEmitter {
       this.error = this.source?.error || null;
     } catch (e) { this.error = safeText(e.message, 500); }
     if (this.selected) { task = { ...task, cwd: task.cwd || this.selected.cwd }; }
-    this.workspace = this.mode === 'demo' ? null : this.options.workspace || task.cwd || null;
+    this.workspace = ['demo', 'work-hooks'].includes(this.mode) ? null : this.options.workspace || task.cwd || null;
     this.evidence = this.mode === 'demo' ? this.source.evidence() : await collectEvidence(this.workspace);
     this.reviewKey = digest(`${this.mode}:${task.id}:${this.workspace || ''}:${this.evidence.manifest?.taskId || ''}`);
     const acceptance = evaluateAcceptance(this.evidence.manifest, this.evidence, this.reviews[this.reviewKey] || {});
     this.snapshot = {
       schemaVersion: 1, version: '0.1.0', observedAt: new Date().toISOString(),
-      source: { mode: this.mode, connected: !!this.source && !this.error, error: this.error,
-        label: this.mode === 'demo' ? 'SIMULATED' : this.mode === 'local' ? 'Codex JSONL · best effort' : 'Codex app-server · read polling',
+      source: { mode: this.mode, connected: !!this.source && !this.error && (this.mode !== 'work-hooks' || this.source.received), error: this.error,
+        label: this.mode === 'demo' ? 'SIMULATED' : this.mode === 'work-hooks' ? 'Local lifecycle Hooks · metadata only' : this.mode === 'local' ? 'Codex JSONL · best effort' : 'Codex app-server · read polling',
+        origin: this.mode === 'work-hooks' ? this.hookOrigin(task.id) : this.mode === 'demo' ? 'simulated' : 'codex',
+        attribution: this.mode === 'work-hooks' ? (this.hookOrigin(task.id) !== 'unknown' ? 'user-confirmed' : 'unconfirmed') : 'adapter',
         endpoint: this.mode === 'app-server' ? this.source?.endpoint : null,
         diagnostics: this.source?.diagnostics || {}, capabilities: { history: true, notifications: this.mode === 'app-server', approvals: false },
-        selection: this.selected?.id === process.env.CODEX_THREAD_ID ? 'current-environment' : this.selected ? 'selected-session' : 'none' },
+        selection: this.mode === 'work-hooks' ? (task.id ? 'selected-session' : 'none') : this.selected?.id === process.env.CODEX_THREAD_ID ? 'current-environment' : this.selected ? 'selected-session' : 'none' },
+      hookSessions: this.mode === 'work-hooks' ? this.source.sessions.map(s => ({ ...s, origin: this.hookOrigin(s.id) })) : [],
       workspace: this.workspace, task, acceptance, evidence: this.evidence,
       replay: this.mode === 'demo' ? { index: this.source.index, playing: this.source.playing, total: 9, scenario: this.source.scenario } : null
     };
     this.emit('snapshot', this.snapshot); return this.snapshot;
   }
   tick() { return this.run(() => this.refreshInternal({ advance: true })); }
+  attributeHook(input) {
+    return this.run(async () => {
+      if (this.mode !== 'work-hooks' || !validHookId(input.sessionId) || !['work-local', 'codex', 'unknown'].includes(input.origin)) throw new Error('Invalid Hook source attribution');
+      await this.refreshInternal();
+      if (!this.source.sessions.some(s => s.id === input.sessionId)) throw new Error('Hook session no longer available');
+      const updated = { ...this.hookOrigins };
+      if (input.origin === 'unknown') delete updated[input.sessionId]; else updated[input.sessionId] = input.origin;
+      await writeFile(path.join(this.dataDir, 'hook-origins.tmp'), JSON.stringify(updated, null, 2), { mode: 0o600 });
+      await rename(path.join(this.dataDir, 'hook-origins.tmp'), path.join(this.dataDir, 'hook-origins.json'));
+      this.hookOrigins = updated; return this.refreshInternal();
+    });
+  }
   demo(action) {
     return this.run(async () => { if (this.mode !== 'demo') throw new Error('Select demo first'); this.source.control(action); return this.refreshInternal(); });
   }

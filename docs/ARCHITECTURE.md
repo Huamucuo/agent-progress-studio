@@ -7,6 +7,9 @@ flowchart LR
   A[Codex local JSONL] --> N[Normalize events]
   B[Codex app-server] --> N
   C[Deterministic demo] --> N
+  P[Trusted local metadata Hook] --> F[Atomic event spool]
+  F --> K[WorkHookSource]
+  K --> N
   N --> T[Pure task reducer]
   G[Read-only Git and files] --> E[Evidence collector]
   R[Explicit test report] --> E
@@ -17,7 +20,7 @@ flowchart LR
   V --> S
   S --> L[Loopback HTTP and SSE]
   L --> U[Reusable browser components]
-  S -. future .-> X[MCP Apps / Work host adapter]
+  S -. future .-> X[MCP Apps / broader Work host adapter]
 ```
 
 The collector owns parsing and transport. The reducer owns only task state. The acceptance evaluator receives **no tool count or model-generated percentage**. The service joins task state and evidence, serializes source changes/reviews/refreshes, and publishes complete snapshots. The browser renders those snapshots and submits explicit human decisions.
@@ -26,7 +29,7 @@ The collector owns parsing and transport. The reducer owns only task state. The 
 
 ## Core contracts
 
-Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific fields. Kinds: task, turn, phase, plan, tool, usage, message, warning. Unsupported records, private reasoning and system/developer content are ignored.
+Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific fields. Kinds: task, turn, phase, plan, tool, usage, message, warning, hook. Unsupported records, private reasoning and system/developer content are ignored. Hook events retain the four allowed metadata fields plus receiver timing; observed Stop is not mapped to task completion.
 
 `reduceEvent(state,event)` returns a new bounded state. A new turn clears plan/tools and the last-request metric. Duplicate retained event IDs are ignored. Only 160 events and 40 tools are retained. Source gaps clear unprovable state; they do not carry an old completed status forward.
 
@@ -38,6 +41,7 @@ Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific 
 
 - Local logs: bounded discovery under one Codex data root; complete newline records only; UTF-8 chunk boundaries preserved; malformed records skipped with diagnostics. Poll every two seconds.
 - App-server: literal loopback endpoint, initialize handshake, list/read method allowlist. Current-turn history only; unsolicited events must match the selected thread. No auto-resume or approval response.
+- Local Hooks: bounded nonrecursive metadata spool, independent from Codex logs. Discover session IDs without stealing selection. Product origin is unknown until explicitly labeled; Hook mode never inherits a workspace or acceptance evidence. [Detailed contract and limits](WORK-HOOKS.md).
 - Git: selected workspace must be the repository root. No optional index locks, textconv or external diff helpers. Only sanitized indexed paths enter the diff; sensitive paths are omitted before the command is constructed. Untracked files can be inspected as bounded text, but are not represented as tracked Git diffs.
 - Evidence files: realpath confinement, traversal/sensitive-path rejection, 2 MiB limit. No arbitrary file-read API; detail IDs must already exist in the evidence index.
 
@@ -45,7 +49,7 @@ Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific 
 
 Human decisions are written atomically into `.aps-data/reviews.json`, keyed by source type, session, workspace and task ID. Accept/reject/clear actions require same-origin access and a per-process token. The service refreshes evidence before committing a review and rejects stale dialog fingerprints. Export is a local download, not an upload.
 
-Only UI language/theme are saved in localStorage; selected navigation uses sessionStorage. No Codex credentials, settings or logs are written. The current source choice is intentionally not persisted across server restarts; default local discovery runs again.
+Only UI language/theme are saved in localStorage; selected navigation uses sessionStorage. Hook product labels persist in `.aps-data/hook-origins.json`; they are user assertions, not host-provided identity. No Codex credentials, settings or original logs are written by the dashboard. The current source choice is intentionally not persisted across server restarts; CLI flags choose the initial adapter.
 
 人工验收存于本工具目录，不写入 Codex 或用户仓库。关闭/重新启动不会丢失决定；修改源码、测试报告或验收定义会使旧决定失效。来源选择重启后重新发现，防止误连历史任务。
 

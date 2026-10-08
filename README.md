@@ -6,6 +6,8 @@
 
 An original, local browser dashboard for coding-agent observability. It separates an agent's activity and self-reported plan from verifiable acceptance conditions. No production dependencies, accounts, API keys, telemetry or cloud service.
 
+**Development branch: Work locally Hook experiment.** An optional, separately installed and trusted metadata probe now feeds the dashboard. It discovers session IDs and shows real lifecycle callbacks; product labels require user confirmation. Plans, tokens and acceptance remain unknown for this source. [Setup, actual host findings and removal](docs/WORK-HOOKS.md). Start with `start.cmd --work-hooks` after configuring the probe. The original V0.1.0 release ZIP remains unchanged.
+
 ## Start on Windows
 
 1. Install **Node.js 22.15 or newer** and optionally Git. This release was tested on Windows with Node 24.17.0 and Microsoft Edge.
@@ -86,7 +88,7 @@ The official [app-server](https://learn.chatgpt.com/docs/app-server) transport i
 
 Token totals and last-request usage are separate. Exact current context occupancy is unknown; the cumulative total is never subtracted from context capacity. Absent timestamps/fields stay unknown. Tests are not inferred from arbitrary console prose or command exit codes.
 
-The dashboard does not change native Work/Codex UI, install Hooks, edit Codex settings, run commands from observed logs, or upload data. MCP Apps / Work are future adapters, not shipped integrations.
+The dashboard does not change native Work/Codex UI, automatically install Hooks, edit Codex settings, run commands from observed logs, or upload data. The optional Work locally metadata experiment needs separate installation and trust; MCP Apps remain future work.
 
 ## Project map
 

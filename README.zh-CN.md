@@ -6,6 +6,8 @@
 
 原创的本地 AI 编程 Agent 仪表盘。把任务活动、Agent 自报计划和验收证据分开显示。运行时零第三方依赖，不需要账号、API 密钥或云服务。
 
+**当前开发分支新增 Work locally Hook 实验。** 单独安装并信任可选元数据探针后，可自动发现会话 ID、查看真实生命周期回调，并逐会话确认 Work/Codex 来源；计划、Token 和验收仍保持未知。[安装、实测发现与卸载](docs/WORK-HOOKS.md)。完成探针配置后运行 `start.cmd --work-hooks`。原始 V0.1.0 发布 ZIP 保持不变。
+
 ## Windows 快速开始
 
 1. 安装 **Node.js 22.15 或更新版本**；查看 Git 证据还需要 Git。本版实测环境为 Windows、Node 24.17.0、Microsoft Edge。
@@ -26,7 +28,7 @@ node src/server.mjs --workspace "C:\Projects\my-project"
 start.cmd --codex-home "D:\CodexData" --port 4320
 ```
 
-[安装、停止与卸载说明](docs/INSTALL.md)。卸载只需停止服务并删除解压目录；本工具没有全局安装、服务注册、自动启动项或 Codex 配置修改。
+[安装、停止与卸载说明](docs/INSTALL.md)。基础仪表盘只需停止服务并删除解压目录；可选 Hook 插件须另外卸载。本工具不注册系统服务或自动启动项，不手工修改全局 Codex 配置。
 
 ## 已实现的使用流程
 
@@ -87,7 +89,7 @@ npm run verify -- --browser
 
 Token 累计值、最近请求大小和模型上下文容量分别显示；精确实时上下文占用保持未知。缺失数据、未报告计划和不可确认时间不会补造。不会仅因为命令返回成功就声称任务已通过测试。
 
-服务只监听本机，不上传代码、提示词或令牌，无外部字体/CDN。导出报告可能含本地路径和代码摘录，由你决定如何分享。人工验收保存在本项目的 `.aps-data`；不安装 Hook、不更改 Codex 设置，也不读取认证文件。
+服务只监听本机，不上传代码、提示词或令牌，无外部字体/CDN。导出报告可能含本地路径和代码摘录，由你决定如何分享。人工验收保存在本项目的 `.aps-data`；网页不自动安装 Hook、不更改 Codex 设置，也不读取认证文件。可选探针仅保存四项元数据，安装和信任另行明确授权。
 
 ## 文档与源码
 
@@ -95,4 +97,4 @@ Token 累计值、最近请求大小和模型上下文容量分别显示；精�
 
 `src/adapters` 负责采集适配；`src/core` 负责状态与验收；`src/collectors` 负责证据；`public` 为可复用组件、双语与主题；`tests` 为自动化测试。全部产品代码与 UI 为本项目原创，没有导入竞品源码。
 
-交付采用 [MIT 许可证](LICENSE)。本次创建的是可发布的本地开源项目，没有自动上传到 GitHub。MCP Apps 和 Work 仅预留适配接口；不能宣称本版能修改它们或 Codex 的原生界面。
+交付采用 [MIT 许可证](LICENSE)。本次创建的是可发布的本地开源项目，没有自动上传到 GitHub。MCP Apps 留待后续；Work locally 目前只验证元数据 Hook 接入，不能修改它们或 Codex 的原生界面。

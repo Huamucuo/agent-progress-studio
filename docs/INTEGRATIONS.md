@@ -30,7 +30,7 @@ Sources: [MCP quickstart](https://developers.openai.com/plugins/build/app-quicks
 
 Hooks run commands or MCP tools at lifecycle points such as SessionStart, PreToolUse, PostToolUse and Stop. Installed plugins can bundle them, but non-managed definitions need trust review. Background hooks have different notification visibility. A plugin package does not deploy local scripts to every execution environment.
 
-V0.1 installs **no Hook**. If later needed, the minimum useful collector would be an opt-in, bounded, asynchronous post-event writer to one local spool, emitting only approved IDs/timing/status fields. It should not block/rewrite tools, read credentials, grant additional filesystem privileges or make network requests. Hook configuration must be reviewed against the installed client version before activation.
+The original V0.1 release installs **no Hook**. The `work-locally-hooks-mvp` development branch adds a separately authorized, bounded asynchronous metadata recorder and receiver. All four target events were observed in controlled local tests after user trust; the client did not need to restart in this test. Product labels remain user-confirmed because callbacks carry no product field. It does not block/rewrite tools, read transcripts or make network requests. See [the experiment and measured limits](WORK-HOOKS.md).
 
 Sources: [Hooks](https://learn.chatgpt.com/docs/hooks), [Package your plugin](https://developers.openai.com/plugins/build/plugins).
 
@@ -41,5 +41,6 @@ Sources: [Hooks](https://learn.chatgpt.com/docs/hooks), [Package your plugin](ht
 | Windows browser | Full dashboard, evidence dialogs, replay, reviews | Local service reads bounded local data | Implemented and tested |
 | ChatGPT MCP Apps | Tool-returned summary/checklist/evidence resource | Sandboxed component, negotiated tools/CSP; no automatic local drive access | Contract reserved |
 | Supported plugin Extensions | Host-declared sidebar or viewer integration | Requires SDK/host support and capability negotiation | Research only |
-| ChatGPT Work | Tools/skills and supported host UI resources | No verified universal event tap or native screen replacement | V0.2 investigation |
+| ChatGPT Work locally | Opt-in local lifecycle Hook metadata | Four fields only; no product attestation, full task stream or native screen replacement | Real Hook experiment on the development branch |
+| Work Cloud with local tool access | Different cloud orchestration boundary | Local command/plugin hooks are not supported by the documented cloud path | Not integrated |
 | Codex native interface | Public app-server and optional approved Hooks supply data | This dashboard cannot rewrite native panels | Read-only adapters only |

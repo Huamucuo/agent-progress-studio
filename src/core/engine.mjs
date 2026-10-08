@@ -30,6 +30,10 @@ export function reduceEvent(state, event) {
     if (e.status !== 'inProgress') { s.endedAt = e.at; s.tools = state.tools.map(t => t.status === 'inProgress' ? { ...t, status: 'unknown' } : t); }
   }
   if (e.kind === 'phase') s.phase = e.phase || 'unknown';
+  if (e.kind === 'hook') {
+    s.phase = e.phase || 'unknown';
+    s.turnId = e.metadata?.turn_id ?? null;
+  }
   if (e.kind === 'plan') s.plan = (Array.isArray(e.plan) ? e.plan : []).slice(0, 100).map(p => ({ step: safeText(p.step, 500), status: ['pending', 'inProgress', 'completed'].includes(p.status) ? p.status : 'unknown' }));
   if (e.kind === 'tool') {
     const id = e.toolId || e.id;

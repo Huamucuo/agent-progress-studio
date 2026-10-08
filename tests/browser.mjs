@@ -55,6 +55,40 @@ try {
     const bounds = await page.getByTestId('review-accept').boundingBox(); assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= 844);
     await page.getByTestId('dialog-close').click();
   });
+  await check('hooks-empty-is-not-connected', async () => {
+    await page.setViewportSize({ width: 1440, height: 1050 });
+    await page.getByTestId('nav-connection').click(); await page.getByTestId('connect-hooks').click();
+    await page.getByText('Waiting for real Hook events', { exact: true }).waitFor();
+    await page.getByTestId('nav-overview').click();
+    assert.equal(await page.getByTestId('coverage-value').innerText(), '—');
+  });
+  await check('hooks-live-discovery-selection-and-attribution', async () => {
+    // Isolated browser fixtures: never written into a user's live Hook spool.
+    const eventsDir = path.join(dir, 'work-hooks/events'), id = 'browser-fixture-session';
+    await mkdir(eventsDir, { recursive: true });
+    const writeEvent = (index, sessionId, eventType) => writeFile(path.join(eventsDir, `1791494400000-00000000-0000-4000-8000-${String(index).padStart(12, '0')}.json`), JSON.stringify({ event_type: eventType, session_id: sessionId, turn_id: 'browser-fixture-turn', timestamp: new Date().toISOString() }));
+    await page.getByTestId('nav-connection').click();
+    await writeEvent(1, id, 'UserPromptSubmit'); await page.getByTestId(`session-${id}`).waitFor();
+    await page.getByTestId('origin-work-local').click();
+    await page.getByTestId('hook-origin').getByText('Work locally · user confirmed', { exact: true }).waitFor();
+    await page.locator('#endpoint').fill('ws://127.0.0.1:4501');
+    await writeEvent(2, 'second-fixture-session', 'SessionStart');
+    await page.locator('#endpoint').blur(); await page.getByTestId('session-second-fixture-session').waitFor();
+    assert.equal(await page.getByTestId('selected-hook-session').innerText(), id);
+    await page.getByTestId('nav-events').click();
+    await writeEvent(3, id, 'Stop'); await page.getByTestId('hook-Stop').waitFor();
+    await page.getByTestId('hook-Stop').click();
+    assert.match(await page.getByRole('dialog').innerText(), /"turn_id": "browser-fixture-turn"/);
+    await page.getByTestId('dialog-close').click();
+    await page.getByTestId('nav-overview').click();
+    assert.equal(await page.getByTestId('coverage-value').innerText(), '—');
+    await page.reload(); await page.getByTestId('nav-connection').click();
+    await page.getByTestId('hook-origin').getByText('Work locally · user confirmed', { exact: true }).waitFor();
+    await page.screenshot({ path: 'test-results/hooks-fixture-light-en.png', fullPage: true });
+    await page.getByTestId('nav-connection').click(); await page.getByTestId('demo-showcase').click();
+    await page.getByTestId('nav-overview').click();
+    assert.match(await page.locator('main').innerText(), /Demo workspace/);
+  });
   assert.deepEqual(errors, []); assert.deepEqual(outbound, []);
   await writeFile('test-results/browser-results.json', JSON.stringify({ version: 1, generatedAt: new Date().toISOString(), tests: results, pageErrors: errors, externalRequests: outbound }, null, 2));
   console.log(`${results.length} browser flows passed; no page errors or external requests.`);

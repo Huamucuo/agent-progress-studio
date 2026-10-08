@@ -13,13 +13,15 @@
 | Option | Meaning / 含义 |
 | --- | --- |
 | `--demo` | Deterministic simulated source / 使用模拟数据 |
+| `--work-hooks` | Observe the separately trusted local probe / 观察单独信任的本地 Hook 探针 |
+| `--work-hooks-dir "D:\APSData\work-hooks\events"` | Override the probe spool / 指定真实事件目录 |
 | `--workspace "C:\repo"` | Evidence workspace override / 明确指定证据代码目录（建议仓库根目录） |
 | `--codex-home "D:\CodexData"` | Codex data root containing `sessions/` / Codex 数据目录 |
 | `--port 4320` | Alternate loopback port / 避免端口冲突 |
 | `--data-dir "D:\APSData"` | Own directory for local reviews / 人工验收记录保存目录 |
 | `--no-open` | Launcher only: no automatic browser / 仅启动器：不自动打开网页 |
 
-Custom workspace selection is explicit. Without `--workspace`, the selected session's recorded working directory is used. Demo never reads real project evidence.
+Custom workspace selection is explicit. Without `--workspace`, the selected Codex session's recorded working directory is used. Demo and Hook mode never read real project evidence. Hook mode ignores `--workspace` because the metadata cannot associate a repository with a Work session. Optional probe installation, trust and removal: [Work Hooks experiment](WORK-HOOKS.md).
 
 没有指定工作目录时，使用已选择会话中记录的目录。演示源不读取实际代码证据。关闭浏览器不会关闭服务；在启动窗口按 Ctrl+C。
 
@@ -48,7 +50,7 @@ Stop the dashboard, extract a new version to a new folder, and optionally copy `
 3. Delete the extracted Agent Progress Studio directory. If `--data-dir` was used, remove only that explicitly chosen data directory if you no longer need its records.
 4. Optionally clear site data for `http://127.0.0.1:4317` to remove language/theme preferences. Node, Git and your browser are shared tools; leave them installed if other projects use them.
 
-停止启动窗口 → 按需备份报告/验收记录 → 删除解压目录即可。自定义数据目录单独按需处理。不会留下系统服务、注册表启动项或 Codex Hook；不要删除 `.codex`、用户仓库或其他应用。
+停止启动窗口 → 按需备份报告/验收记录 → 删除解压目录即可。自定义数据目录单独按需处理。不会留下系统服务或注册表启动项。若安装过可选 Hook 探针，先按 [独立卸载步骤](WORK-HOOKS.md#removal--停用与卸载) 移除它；仅删除网页目录不能卸载插件。不要删除 `.codex`、用户仓库或其他应用。
 
 ## Troubleshooting / 排障
 

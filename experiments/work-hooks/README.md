@@ -2,6 +2,8 @@
 
 Experimental, metadata-only support. An isolated recorder test is **not** proof that ChatGPT Work locally fired a Hook.
 
+The receiver and bilingual UI are now implemented in the development branch. See [setup, runtime findings, data contract and removal](../../docs/WORK-HOOKS.md). Real callbacks were observed after explicit installation authorization and user trust; no client restart was required in this local test. The source labels remain user-confirmed because the payload has no product field.
+
 Baseline: `5e2afd02cc9305da13f19336b7dd639e54937d85` (V0.1.0). Development branch: `work-locally-hooks-mvp`.
 
 The original recorder keeps only `event_type`, `session_id`, `turn_id`, and its UTC `timestamp`. It never opens transcripts or sends network requests. Standard Hook input can contain private text; all fields outside that allowlist are discarded without logging. Missing turn IDs remain null. A Stop event means that a turn stopped, not that an acceptance condition passed.
