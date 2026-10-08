@@ -1,0 +1,5 @@
+node_modules/
+.aps-data/
+.agent-progress/results.json
+test-results/
+*.log

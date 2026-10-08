@@ -1,0 +1,5 @@
+{"timestamp":"2026-10-09T00:00:00Z","type":"session_meta","payload":{"id":"fixture-codex-session","cwd":"C:\\Example\\project","cli_version":"fixture"}}
+{"timestamp":"2026-10-09T00:00:01Z","type":"event_msg","payload":{"type":"task_started","turn_id":"fixture-turn"}}
+{"timestamp":"2026-10-09T00:00:02Z","type":"event_msg","payload":{"type":"user_message","message":"Build a local progress dashboard"}}
+{"timestamp":"2026-10-09T00:00:03Z","type":"response_item","payload":{"type":"function_call","call_id":"plan","name":"update_plan","arguments":"{\"plan\":[{\"step\":\"Implement collector\",\"status\":\"completed\"},{\"step\":\"Verify behavior\",\"status\":\"in_progress\"}]}"}}
+{"timestamp":"2026-10-09T00:00:04Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":40000,"input_tokens":35000,"output_tokens":5000},"last_token_usage":{"total_tokens":10000},"model_context_window":128000}}}

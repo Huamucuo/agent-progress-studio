@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-09T00:00:00.000Z",
+  "sourceFingerprint": "REPLACE_WITH_ACTUAL_SOURCE_FINGERPRINT_FROM_THE_SAME_TESTED_WORKSPACE",
+  "tests": [{ "id": "validation-tests", "status": "passed", "exitCode": 0 }],
+  "detail": "Example only. This report is intentionally not current until backed by an actual test run."
+}

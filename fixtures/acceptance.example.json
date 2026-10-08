@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "taskId": "my-feature-v1",
+  "title": "A small feature with explicit acceptance",
+  "criteria": [
+    { "id": "validation", "title": "Reject invalid inputs", "weight": 2, "files": ["src/validation.js"], "checks": ["validation-tests"] },
+    { "id": "appearance", "title": "User approves the screen", "weight": 1, "files": ["public/index.html"], "requiresHuman": true }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "taskId": "agent-progress-studio-v0.1",
+  "title": "Agent Progress Studio V0.1",
+  "criteria": [
+    { "id": "engine", "title": "验收引擎不编造完成度", "titleEn": "Acceptance engine does not invent progress", "files": ["src/core/acceptance.mjs"], "checks": ["engine"] },
+    { "id": "collectors", "title": "日志与 Git / 测试证据可检查", "titleEn": "Inspect log, Git and test evidence", "files": ["src/adapters/codex-log.mjs", "src/collectors/evidence.mjs"], "checks": ["collectors"] },
+    { "id": "protocol", "title": "Codex 适配器限制为本机只读接口", "titleEn": "Limit Codex adapter to local read-only methods", "files": ["src/adapters/app-server.mjs"], "checks": ["protocol"] },
+    { "id": "service", "title": "实时服务、验收持久化与导出", "titleEn": "Live service, persisted reviews and export", "files": ["src/server.mjs", "src/service.mjs"], "checks": ["service"] },
+    { "id": "browser", "title": "中英文、主题、证据弹窗与回放流程", "titleEn": "Bilingual themes, evidence dialogs and replay", "files": ["public/app.mjs", "public/styles.css"], "checks": ["browser"] },
+    { "id": "visual-review", "title": "用户人工确认可读性和实际工作流程", "titleEn": "User approval of readability and workflow", "files": ["public/app.mjs"], "checks": ["browser"], "requiresHuman": true },
+    { "id": "docs", "title": "源码、双语文档与许可证交付检查", "titleEn": "Review source, bilingual docs and license delivery", "files": ["README.md", "README.zh-CN.md", "LICENSE", "docs/ARCHITECTURE.md", "docs/COMPETITORS.md"], "requiresHuman": true }
+  ]
+}
