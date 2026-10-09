@@ -1,4 +1,7 @@
 const en = {
+  contentDenied:'Session content access is off', contentDeniedDetail:'Discovery reads names and file metadata only. A product label alone grants no content access. Work content remains excluded.', allowContent:'Confirm Codex and allow content access',
+  allowContentDetail:'Confirm that this specific ID belongs to your Codex session. This permits local reading of its prompts, messages, tool records and associated project evidence, and including them in local exports. Do not authorize a Work or unidentified session.', allowContentConfirm:'This is my Codex session; allow reading',
+  contentGranted:'Codex session content authorized', contentGrantedDetail:'Permission is saved locally for this ID. Revoke to clear monitored content and evidence. Files already exported are not deleted.', revokeContent:'Revoke content access',
   overview:'Run overview', acceptance:'Acceptance', evidence:'Evidence', events:'Event stream', connection:'Connections',
   workspace:'WORKSPACE', observatory:'LOCAL AGENT OBSERVATORY', localOnly:'Your work stays here.', localDetail:'Local processing · no telemetry', export:'Export report', changeSource:'Change source',
   heading:'Every step. Backed by evidence.', subheading:'Choose a task. See its latest activity and what remains unknown.', currentTask:'CURRENT TASK', noTask:'Waiting for a task',
@@ -25,7 +28,7 @@ const en = {
   tests:'Test evidence', testsHint:'Explicit named results, matched to the source fingerprint', viewReport:'Open test report', noTests:'No test report', noTestsDetail:'No current .agent-progress/results.json report has been supplied. Successful tool exit codes alone do not verify criteria.', current:'Current source', stale:'Stale · rerun tests', passed:'Passed', skipped:'Skipped',
   acceptanceHint:'Each condition has its own evidence and review gate.', condition:'Condition', status:'Status', details:'Inspect evidence', checkEvidence:'Test checks', implementationEvidence:'Implementation evidence', missing:'Missing', present:'Present',
   review:'Human review', reviewHint:'Confirm only after inspecting the evidence. This records your decision locally; it does not control Codex.', note:'Review note (optional)', accept:'Accept criterion', reject:'Reject criterion', clear:'Clear decision', saved:'Review saved locally', staleReview:'Previous review expired because evidence changed.', close:'Close', noDetail:'No additional detail was reported.',
-  sourceHeading:'Choose what to observe', sourceHint:'Connections are local. Switching sources keeps their evidence and reviews separate.', logs:'Codex local logs', logsDetail:'Sessions are discovered continuously while this source is selected. Choose the task to observe.', discover:'Discover sessions', connectLocal:'Observe local Codex', currentEnvironment:'Current environment', lastUpdated:'Updated', noSessions:'No sessions discovered', noSessionsHint:'Open Codex locally, or launch with --codex-home pointing to its data folder.',
+  sourceHeading:'Choose what to observe', sourceHint:'Connections are local. Switching sources keeps their evidence and reviews separate.', logs:'Codex local logs', logsDetail:'IDs are discovered without opening logs. Confirm a Codex ID and grant content access to observe it.', discover:'Discover sessions', connectLocal:'Observe local Codex', currentEnvironment:'Current environment', lastUpdated:'Updated', noSessions:'No sessions discovered', noSessionsHint:'Open Codex locally, or launch with --codex-home pointing to its data folder.',
   rpc:'Codex app-server', rpcDetail:'Connect to an explicitly started loopback WebSocket listener. Experimental transport; V0.1 supports endpoints without bearer authentication.', endpoint:'Local endpoint', connect:'Connect', demoTitle:'Reproducible demo', demoDescription:'Explore progress, evidence, failures and a human review without running Codex.', showcase:'Full scenario', noPlanDemo:'No plan / unknown data',
   boundaries:'Integration boundaries', boundariesDetail:'Work locally has an opt-in metadata Hook experiment. Installation and Hook trust are separate steps. MCP Apps remain future work. This independent dashboard cannot modify the native Codex or Work interface.',
   replay:'Replay', restart:'Restart', pause:'Pause', play:'Play', step:'Step', finish:'Final frame',
@@ -38,6 +41,10 @@ const en = {
   overallProgress:'Overall task progress', overallHint:'Unknown: no reliable model of all remaining work. Plan steps and acceptance are separate measures.', planProgress:'Reported plan steps', planProgressHint:'Completed / reported steps. These are agent claims, not verified deliverables.', hookToolsHint:'Separate callbacks; concurrent calls are not paired without a call ID.', started:'Start observed', succeeded:'Success reported'
 };
 const zh = {
+  contentDenied:'会话正文读取已关闭', contentDeniedDetail:'发现会话仅检查文件名和文件信息。来源标签不等于正文授权；Work 正文保持排除。', allowContent:'确认是 Codex 并授权读取正文',
+  allowContentDetail:'请确认这个 ID 是你的 Codex 会话。授权后将本地读取该会话的提示词、消息、工具记录及关联项目证据，并可纳入本地导出。请勿授权 Work 或无法确认来源的会话。', allowContentConfirm:'这是我的 Codex 会话，允许读取',
+  contentGranted:'已授权读取此 Codex 会话正文', contentGrantedDetail:'授权按会话 ID 保存在本机。撤销后清空当前正文和证据；不会删除已经导出的文件。', revokeContent:'撤销正文读取授权',
+
   overview:'任务总览', acceptance:'验收清单', evidence:'证据中心', events:'事件流', connection:'连接管理',
   workspace:'工作空间', observatory:'本地 AGENT 观测工作台', localOnly:'工作数据，留在本机。', localDetail:'本地处理 · 无遥测', export:'导出报告', changeSource:'切换来源',
   heading:'每一步，都有据可查。', subheading:'选择指定任务，先看运行状态、正在做什么和待处理步骤。', currentTask:'当前任务', noTask:'等待任务',
@@ -64,7 +71,7 @@ const zh = {
   tests:'自动测试证据', testsHint:'明确命名的测试结果，与源文件指纹核对', viewReport:'查看测试报告', noTests:'尚无测试报告', noTestsDetail:'未提供当前版本的 .agent-progress/results.json。工具退出成功本身不会让验收条件通过。', current:'匹配当前源码', stale:'证据已过期 · 需重测', passed:'通过', skipped:'已跳过',
   acceptanceHint:'每项条件都有独立的证据与验收门槛。', condition:'验收条件', status:'状态', details:'检查证据', checkEvidence:'测试条件', implementationEvidence:'实现文件', missing:'缺失', present:'已存在',
   review:'人工验收', reviewHint:'请检查证据后再确认。操作只保存本地验收决定，不会控制 Codex。', note:'验收备注（可选）', accept:'确认通过', reject:'标记不通过', clear:'清除决定', saved:'验收决定已保存到本机', staleReview:'证据已变化，上次人工验收已失效。', close:'关闭', noDetail:'来源没有报告更多详情。',
-  sourceHeading:'选择要观察的任务', sourceHint:'连接均在本地；切换来源时，证据与验收记录保持独立。', logs:'Codex 本地日志', logsDetail:'观察此来源时持续发现会话，可直接选择需要跟踪的任务。', discover:'发现会话', connectLocal:'观察本地 Codex', currentEnvironment:'当前环境会话', lastUpdated:'更新于', noSessions:'未发现会话', noSessionsHint:'请先在本机打开 Codex，或启动时用 --codex-home 指定其数据目录。',
+  sourceHeading:'选择要观察的任务', sourceHint:'连接均在本地；切换来源时，证据与验收记录保持独立。', logs:'Codex 本地日志', logsDetail:'仅通过文件名发现 ID。确认 Codex 来源并授权正文后，才读取该会话。', discover:'发现会话', connectLocal:'观察本地 Codex', currentEnvironment:'当前环境会话', lastUpdated:'更新于', noSessions:'未发现会话', noSessionsHint:'请先在本机打开 Codex，或启动时用 --codex-home 指定其数据目录。',
   rpc:'Codex app-server', rpcDetail:'连接明确启动的本机 WebSocket 地址。此传输为实验接口；V0.1 支持未配置 Bearer 认证的本机端点。', endpoint:'本机地址', connect:'连接', demoTitle:'可复现模拟任务', demoDescription:'无需运行 Codex，即可查看进度、证据、失败及人工验收流程。', showcase:'完整演示场景', noPlanDemo:'无计划 / 数据未知',
   boundaries:'接入能力边界', boundariesDetail:'Work locally 提供自愿启用的元数据 Hook 实验；安装插件与信任 Hook 是独立步骤。MCP Apps 留待后续验证。本工具是独立仪表盘，不能修改 Codex 或 Work 原生界面。',
   replay:'事件回放', restart:'从头播放', pause:'暂停', play:'播放', step:'下一步', finish:'最终状态',

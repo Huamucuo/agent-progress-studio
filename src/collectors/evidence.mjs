@@ -3,12 +3,25 @@ import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
+import { homedir } from 'node:os';
 import { validateManifest } from '../core/acceptance.mjs';
 import { safeText } from '../core/engine.mjs';
 const exec = promisify(execFile);
 const ignored = new Set(['.git', 'node_modules', '.aps-data', 'test-results', '.venv', '__pycache__', 'coverage']);
 const sensitive = p => /(^|[\\/])(?:\.env(?:\..*)?|auth\.json|credentials(?:\.json)?|id_rsa|id_ed25519|\.ssh|\.aws|\.codex)(?:[\\/]|$)/i.test(p) || /\.(pem|key|pfx)$/i.test(p);
 export const digest = value => createHash('sha256').update(value).digest('hex');
+
+// Evidence must never provide an alternate route into a session store, including
+// custom CODEX_HOME paths and realpath aliases. Reject overlapping roots entirely.
+export async function evidenceWorkspaceAllowed(root, { protectedRoots = [] } = {}) {
+  if (!root) return false;
+  const resolve = async p => path.resolve(await realpath(p).catch(() => p)).toLowerCase();
+  const base = await resolve(root);
+  const roots = [path.join(homedir(), '.codex', 'sessions'), ...(process.env.CODEX_HOME ? [path.join(process.env.CODEX_HOME, 'sessions')] : []), ...protectedRoots];
+  const inside = (a, b) => { const relative = path.relative(a, b); return !relative || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative)); };
+  for (const item of roots) { const target = await resolve(item); if (inside(base, target) || inside(target, base)) return false; }
+  return true;
+}
 
 export async function confinedFile(root, relative) {
   if (typeof relative !== 'string' || !relative || path.isAbsolute(relative) || relative.includes('\0') || relative.split(/[\\/]/).some(p => p === '..' || p === '.git') || sensitive(relative)) throw new Error('Evidence path denied');
@@ -20,7 +33,8 @@ export async function confinedFile(root, relative) {
   return target;
 }
 
-export async function sourceFingerprint(root) {
+export async function sourceFingerprint(root, options = {}) {
+  if (!await evidenceWorkspaceAllowed(root, options)) return { hash: null, complete: false, files: 0, bytes: 0 };
   const hash = createHash('sha256'); let files = 0, bytes = 0, complete = true;
   async function walk(dir, prefix = '', depth = 0) {
     if (depth > 20) { complete = false; return; }
@@ -82,14 +96,14 @@ async function gitEvidence(root) {
       commits: log.trim().split('\n').filter(Boolean).map(l => { const [hash, at, ...title] = l.split('\t'); return { hash, at, title: safeText(title.join('\t'), 300) }; }) };
   } catch (e) { return { available: false, reason: e.code === 'ENOENT' ? 'Git is not installed' : 'Git evidence unavailable', files: [], commits: [], diff: '' }; }
 }
-export async function collectEvidence(root) {
-  if (!root) return { manifest: null, files: [], report: null, git: { available: false, files: [], commits: [], diff: '' }, fingerprint: null, manifestHash: null, errors: [] };
+export async function collectEvidence(root, options = {}) {
+  if (!await evidenceWorkspaceAllowed(root, options)) return { manifest: null, files: [], report: null, git: { available: false, files: [], commits: [], diff: '' }, fingerprint: null, manifestHash: null, errors: root ? ['Evidence workspace overlaps a protected session store'] : [] };
   const errors = []; let manifest = null, manifestHash = null, report = null;
   try { const contents = await readFile(await confinedFile(root, '.agent-progress/acceptance.json'), 'utf8'); manifest = validateManifest(JSON.parse(contents)); manifestHash = digest(contents); }
   catch (e) { if (e.code !== 'ENOENT') errors.push(`Acceptance: ${e.message}`); }
   const files = [];
   for (const file of new Set(manifest?.criteria.flatMap(c => c.files || []) || [])) { try { await confinedFile(root, file); files.push(file); } catch { /* no implementation evidence */ } }
-  const fp = manifest ? await sourceFingerprint(root) : { hash: null, complete: true };
+  const fp = manifest ? await sourceFingerprint(root, options) : { hash: null, complete: true };
   let reportHash = '';
   try {
     const contents = await readFile(await confinedFile(root, '.agent-progress/results.json'), 'utf8'); const parsed = JSON.parse(contents);
@@ -101,7 +115,8 @@ export async function collectEvidence(root) {
   return { manifest, manifestHash, files, report, fingerprint: fp.hash ? digest(fp.hash + ':' + reportHash) : null, sourceFingerprint: fp.hash, git: await gitEvidence(root), errors };
 }
 
-export async function readEvidence(root, kind, id, evidence) {
+export async function readEvidence(root, kind, id, evidence, options = {}) {
+  if (!await evidenceWorkspaceAllowed(root, options)) throw new Error('Evidence workspace is not authorized');
   if (kind === 'diff') return evidence.git.diff || '';
   if (kind === 'report') return JSON.stringify(evidence.report, null, 2);
   if (kind === 'commit') {

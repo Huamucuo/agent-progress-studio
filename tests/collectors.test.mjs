@@ -26,17 +26,17 @@ test('official app-server notifications map command status and plan', () => {
 });
 test('log discovery, partial UTF-8 append, malformed lines and truncation recover', async t => {
   const dir = await temp(t); await mkdir(path.join(dir, 'sessions/2026/10/09'), { recursive: true });
-  const file = path.join(dir, 'sessions/2026/10/09/rollout-test.jsonl');
-  await writeFile(file, line('session_meta', { id: 'session', cwd: dir }) + line('event_msg', { type: 'task_started', turn_id: 'turn' }));
-  const sessions = await discoverSessions(dir); assert.equal(sessions[0].id, 'session');
-  const source = new LogSource(file, 'session'); await source.poll();
+  const file = path.join(dir, 'sessions/2026/10/09/rollout-abcdef12-abcd-4abc-8abc-abcdef123456.jsonl');
+  await writeFile(file, line('session_meta', { id: 'abcdef12-abcd-4abc-8abc-abcdef123456', cwd: dir }) + line('event_msg', { type: 'task_started', turn_id: 'turn' }));
+  const sessions = await discoverSessions(dir); assert.equal(sessions[0].id, 'abcdef12-abcd-4abc-8abc-abcdef123456');
+  const source = new LogSource(file, 'abcdef12-abcd-4abc-8abc-abcdef123456', undefined, { canRead: () => true }); await source.poll();
   const content = Buffer.from(line('event_msg', { type: 'user_message', message: '中文任务' }));
   await appendFile(file, content.subarray(0, content.length - 3)); await source.poll();
   assert.equal(source.state.title, '');
   await appendFile(file, content.subarray(content.length - 3)); await source.poll();
   assert.equal(source.state.title, '中文任务');
   await appendFile(file, 'not-json\n'); await source.poll(); assert.equal(source.diagnostics.malformed, 1);
-  await writeFile(file, line('session_meta', { id: 'session', cwd: dir })); await source.poll();
+  await writeFile(file, line('session_meta', { id: 'abcdef12-abcd-4abc-8abc-abcdef123456', cwd: dir })); await source.poll();
   assert.equal(source.state.title, ''); assert.equal(source.diagnostics.rotated, true);
 });
 test('test evidence becomes stale when source bytes change and Git diffs are readable', async t => {
@@ -66,9 +66,9 @@ test('declared evidence in a normally excluded directory still invalidates the f
   assert.notEqual(before.hash, after.hash);
 });
 test('large skipped log ranges clear stale completion and usage', async t => {
-  const dir = await temp(t), file = path.join(dir, 'session.jsonl');
-  await writeFile(file, line('event_msg', { type: 'task_complete', turn_id: 'old' }));
-  const source = new LogSource(file, 'session', 512); await source.poll(); assert.equal(source.state.phase, 'completed');
+  const dir = await temp(t), file = path.join(dir, 'abcdef12-abcd-4abc-8abc-abcdef123456.jsonl');
+  await writeFile(file, line('session_meta', { id: 'abcdef12-abcd-4abc-8abc-abcdef123456', cwd: dir }) + line('event_msg', { type: 'task_complete', turn_id: 'old' }));
+  const source = new LogSource(file, 'abcdef12-abcd-4abc-8abc-abcdef123456', 512, { canRead: () => true }); await source.poll(); assert.equal(source.state.phase, 'completed');
   await appendFile(file, line('ignored', { data: 'x'.repeat(2000) }) + line('event_msg', { type: 'agent_message', message: 'Tail only' }));
   await source.poll(); assert.equal(source.state.phase, 'unknown'); assert.equal(source.diagnostics.truncated, true);
 });

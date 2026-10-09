@@ -1,41 +1,25 @@
-# 0.1.1-rc.2 incremental review / 增量审计候选版
+# 0.1.1-rc.3 P-01 / D-01 repair candidate
 
-Status: **awaiting independent incremental audit and user acceptance**. Not publicly published. Feature development stops at this candidate until review/acceptance feedback arrives.
+Status: **pending Work B independent supplemental audit and user acceptance**. No public release. Development freezes at the delivered commit and archive.
 
-用户报告 Work B 对 `5e2afd02cc9305da13f19336b7dd639e54937d85` 和当时的 V0.1 Windows ZIP 给出 `READY_FOR_RELEASE`。该结论不自动覆盖本候选版。这里记录开发交接范围，不重复或替代来源审计。
+Repair baseline: **8495bac1bcabf619afaafb1b4e126b5a429ccf25** (0.1.1-RC2, Work B: NEEDS_REWORK). Branch: `repair-rc2-p01-d01`. RC2 commit and ZIP remain unchanged. The earlier V0.1 READY_FOR_RELEASE decision does not apply to this candidate.
 
-## Scope
+## P-01: enforcement before session content
 
-- Separate development branch: `work-locally-hooks-mvp`.
-- Original metadata recorder and trusted local lifecycle Hook integration.
-- Automatic discovery of observed session IDs, stable selection, explicit Work/Codex user attribution and separate Demo source.
-- Bilingual live event UI, four-field base allowlist plus two explicitly authorized tool metadata fields, missing-data handling, collector timing and diagnostic limits.
-- Existing Codex logs, app-server, evidence, acceptance, demo, export, language and theme behavior retained.
-- Tests for privacy filtering, concurrent callbacks, source isolation, persistence, stale IDs and browser flows.
-- Font redistribution inspection, documentation, candidate version and Windows packaging.
+RC2 compared Work IDs case-sensitively, despite accepting case-insensitive UUID filenames; its metadata probe could prefetch body bytes before deciding to exclude a Work session. It also treated lack of a Work label as permission. The repair uses filename/stat-only discovery and a separate explicit Codex content grant, canonical UUIDs, bounded same-handle identity validation before the sole body reader, and state invalidation on denial. Unknown/Work IDs and labels without grants do not open a log. See [complete access rules](PRIVACY-SCOPE.md).
 
-A sidecar manifest accompanies the candidate ZIP. It records the final full commit SHA, baseline SHA, every added/modified/deleted path and each distributed file's SHA256. Runtime events, personal plugin settings, trust state, transcripts, node_modules, browser binaries and Git internals are excluded. The original baseline ZIP is not overwritten.
+The same boundary covers selected-source polling, replacement, cached snapshot/export/evidence and app-server history requests. Evidence helpers protect both the default session store and custom environment/CLI roots. UI scope changes close focused dialogs and discard delayed evidence responses; delayed mutation replies cannot override newer SSE snapshots.
 
-## Real verification and limits
+Compatibility restrictions are intentional and visible: custom non-UUID log names are not opened, grants are required even for old Codex labels, and app-server no longer lists all threads or consumes unsolicited notifications. Its remaining authorized history polling does not provide notification-only plan/usage fields. Real host behavior under this stricter envelope rule awaits manual acceptance; this candidate does not assert unchanged full RPC compatibility.
 
-The user created Work locally sessions and sent “你好”; the receiver and browser observed SessionStart, UserPromptSubmit, PostToolUse and Stop. A second controlled test automatically discovered a new session while the page was open. The user confirmed no client restart. Exact measurements and boundaries are in [WORK-HOOKS](WORK-HOOKS.md).
+## D-01: documentation follows the unchanged protocol
 
-Hook payloads do not attest the Work/Codex product; the UI labels correlated sessions **user-confirmed**, otherwise unknown. No task text, plan, tokens, context occupancy, acceptance evidence or ETA is supplied by this probe. Work Cloud, MCP App embedding and native UI modification remain unavailable. Callback delivery is best effort, bounded by time/input/storage limits; long-duration reliability is not certified.
+The existing recorder stores four base fields. Current PreToolUse/PostToolUse records add tool_name and tool_status (six total); the receiver still accepts legacy four-field tool records. README, interfaces, field-source table and synthetic examples now say the same thing. Neither the recorder nor Hook definitions/receiver were changed; no installation, trust change or client restart is required by this patch.
 
-## Review focus
+## Verification and handoff
 
-Review the commit range after the baseline, then compare the supplied ZIP inventory with that final commit. The only generated ZIP addition is `.agent-progress/results.json`, produced by tests against the archived source bytes. Check the plugin's strict four/six-field projection and local write scope, source isolation, origin labels and UI claims. Font declarations and the absence of redistributed font binaries are documented in [THIRD_PARTY](../THIRD_PARTY.md).
+`tests/privacy.test.mjs` records actual synthetic file-I/O requests and byte ranges, proving denied body readers are never called. It includes authorized controls, case aliases, invalid/duplicate/unknown IDs, header mismatches/replacement, grant/revoke/restart/export and scoped RPC behavior. D-01 examples are checked against the producer and receiver. Existing Node and real Edge flows cover the monitoring and evidence features. Final counts, outputs and I/O traces accompany the release candidate; test quantity is not product-completion evidence.
 
-Do not apply the previous release approval to this candidate automatically. There is no public publishing, global trust bypass or automatic client restart in this stage.
+This round also renders previously observed real Work callbacks in RC3 and observes fresh callbacks from the existing development session. Their product is not attested by Hook payloads. A new user-created Work greeting/tool test, a real completed Codex turn through the new consent flow, and the stricter real app-server endpoint remain **pending manual acceptance**. Historical Work observations and earlier Codex timeout remain recorded in [VERIFICATION](VERIFICATION.md) / [WORK-HOOKS](WORK-HOOKS.md).
 
-## RC.2 scope after the user's product correction
-
-- Monitoring-first home: direct source/session selection, last observed activity, tool names, recent events and reported plan.
-- Continuous Codex session discovery and stable explicit selection, including an initially empty source.
-- Confirmed Work session IDs are excluded from Codex log selection even if the shared runtime leaves a matching JSONL header.
-- Independent overall/plan/acceptance measures; no overall percentage from tools or acceptance. Running evidence expires to unknown after 30 seconds without a newer activity event.
-- Authorized v0.0.2 Hook projection and PreToolUse; exact-row display timing in the real Work retry. Failed initial host attempt retained in the evidence narrative.
-- Existing evidence/review/export/demo/language/theme features retained and regression-tested. No competitor source import, font binary, remote asset or production dependency added.
-- Functional review fixes: Work exclusion before discovery truncation, manual discovery from Demo, review/app-server terminal phase rendering, browser-side expiry of cached activity and explicit feed-loss status.
-
-The original requirements for complete Work task content, plans and reliable total remaining work are **not fulfilled** by metadata Hooks. This candidate deliberately exposes that limit and awaits the user's acceptance; it does not rename the product as Codex-only or certify full product completion.
+The external handoff identifies the full final commit, exact RC2 Git diff, every added/modified path, Windows ZIP SHA256 and every distributed file hash. Only the generated verification report is added to committed source bytes. Private metadata, prompts, credentials, local settings, node_modules and Git internals are excluded. Font inspection is an inventory check, not a repeated provenance audit. Work B's independent directory is untouched.

@@ -6,7 +6,9 @@ The receiver and bilingual UI are now implemented in the development branch. See
 
 Baseline: `5e2afd02cc9305da13f19336b7dd639e54937d85` (V0.1.0). Development branch: `work-locally-hooks-mvp`.
 
-Recorder v0.0.2 keeps `event_type`, `session_id`, nullable `turn_id`, and its UTC `timestamp`. With explicit user authorization, PreToolUse/PostToolUse also keep `tool_name` and `tool_status` (started/succeeded/failed/unknown). It reads only top-level numeric exit_code/exitCode or boolean isError to derive an outcome; free-form output is not parsed. It never opens transcripts or sends network requests. Standard Hook input can contain private text; all fields outside that allowlist are discarded without logging. Missing turn IDs remain null. A Stop event means that a turn stopped, not that an acceptance condition passed.
+Recorder v0.0.2 keeps `event_type`, `session_id`, nullable `turn_id`, and its UTC `timestamp`. With explicit user authorization, PreToolUse/PostToolUse also keep `tool_name` and `tool_status` (started/succeeded/failed/unknown). It reads only integer tool_response.exit_code/tool_response.exitCode or boolean tool_response.isError to derive an outcome; free-form output is not parsed. It never opens transcripts or sends network requests. Standard Hook input can contain private text; all fields outside that allowlist are discarded without logging. Missing turn IDs remain null. A Stop event means that a turn stopped, not that an acceptance condition passed.
+
+Non-tool records have exactly four fields; current tool records have exactly six. The receiver also accepts legacy four-field tool records. [Field sources and synthetic examples](../../docs/WORK-HOOKS.md#data-path-and-interpretation--数据路径与含义). RC3 does not change the recorder protocol or Hook definitions.
 
 Copy this `plugin/` to a private staging directory and create a **local, untracked** `settings.json` inside it:
 

@@ -21,9 +21,11 @@
 | `--data-dir "D:\APSData"` | Own directory for local reviews / 人工验收记录保存目录 |
 | `--no-open` | Launcher only: no automatic browser / 仅启动器：不自动打开网页 |
 
+Select a known Codex ID and explicitly grant content access before monitoring its log. Product labels alone do not grant permission. Revoke on the overview or connection page to stop reading and clear state. Permissions and labels are saved in `.aps-data/session-access.json`. No grant is needed for the previously authorized metadata-only Hook source. Unknown log IDs remain unopened.
+
 Custom workspace selection is explicit. Without `--workspace`, the selected Codex session's recorded working directory is used. Demo and Hook mode never read real project evidence. Hook mode ignores `--workspace` because the metadata cannot associate a repository with a Work session. Optional probe installation, trust and removal: [Work Hooks experiment](WORK-HOOKS.md).
 
-没有指定工作目录时，使用已选择会话中记录的目录。演示源不读取实际代码证据。关闭浏览器不会关闭服务；在启动窗口按 Ctrl+C。
+没有指定工作目录时，使用已授权且成功读取的 Codex 会话所记录的目录。正文默认拒绝；旧来源标签不迁移为正文授权。证据目录不能覆盖 Codex 会话存储目录或位于其内部。演示源不读取实际代码证据。关闭浏览器不会关闭服务；在启动窗口按 Ctrl+C。
 
 ## Optional app-server / 可选官方接口
 
@@ -33,13 +35,15 @@ In another terminal, start an endpoint you own:
 codex app-server --listen ws://127.0.0.1:4500
 ```
 
+RC3 only polls IDs already discovered locally and explicitly granted as Codex; it does not list the endpoint’s other threads or parse unsolicited notifications. Responses without a leading numeric request ID are rejected. Real-host compatibility of this restriction is pending manual acceptance.
+
 Then enter that address in Connections → Codex app-server. Its transport is experimental. The dashboard supports unauthenticated literal loopback endpoints only. Authentication support is deferred; do not disable authentication on an existing secured service just to connect. `thread/read` does not resume/subscribe, so live desktop data may be more complete via the log source. Stop this separately launched server with Ctrl+C when finished.
 
 在“连接管理”中填写上述地址。不要把本机端点改成外网监听。此连接只读，不能保证获取别的进程的实时计划/Token 通知。应用不自动启动、停止或接管现有 Codex 服务。
 
 ## Upgrade / 升级
 
-Stop the dashboard, extract a new version to a new folder, and optionally copy `.aps-data/reviews.json`. Keep old reports/exports until you have verified the upgrade. Evidence fingerprints will invalidate approvals when sources/definitions differ.
+Stop the dashboard, extract a new version to a new folder, and optionally copy `.aps-data/reviews.json` and the source labels/permissions you intend to retain. Legacy `hook-origins.json` labels migrate without content grants; a corrupt access file denies all. Keep old reports/exports until you have verified the upgrade. Evidence fingerprints will invalidate approvals when sources/definitions differ.
 
 停止服务后解压新版本到新目录，需要时复制 `.aps-data/reviews.json`。保留旧导出；版本变化导致的验收失效属于正常行为。
 

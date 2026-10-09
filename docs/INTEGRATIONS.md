@@ -6,7 +6,7 @@ Checked 2026-10-09. Public documentation describes capabilities; actual availabi
 
 The documented protocol uses ID-correlated requests/responses and notifications, with an initialization handshake. Read-only `thread/list` and `thread/read` allow session discovery/history; the latter does not resume a session or subscribe to its stream. Plan and token notifications are useful only when delivered to that connection. WebSocket support is experimental. Our own local endpoint successfully returned the current thread, but its stored status differed from the actively tailed log; this is why the UI labels source and limitations.
 
-V0.1 使用只读列表/历史读取与实际收到的通知；另起服务不等于获得桌面端活跃会话的完整实时流。默认使用本地日志并注明内部格式风险。
+RC3 为隔离未授权正文，停用全局 `thread/list`（其预览可能包含 Work 内容），仅轮询本地已明确授权的 Codex ID。未关联到已授权请求或非前置数值 ID 的响应不解析；不接收未请求通知。该收紧后的真实宿主兼容性待人工验收；另起服务仍不等于获得桌面端实时流。见 [读取边界](PRIVACY-SCOPE.md)。
 
 Sources: [app-server](https://learn.chatgpt.com/docs/app-server), [original documentation route](https://developers.openai.com/codex/app-server).
 
@@ -41,6 +41,6 @@ Sources: [Hooks](https://learn.chatgpt.com/docs/hooks), [Package your plugin](ht
 | Windows browser | Full dashboard, evidence dialogs, replay, reviews | Local service reads bounded local data | Implemented and tested |
 | ChatGPT MCP Apps | Tool-returned summary/checklist/evidence resource | Sandboxed component, negotiated tools/CSP; no automatic local drive access | Contract reserved |
 | Supported plugin Extensions | Host-declared sidebar or viewer integration | Requires SDK/host support and capability negotiation | Research only |
-| ChatGPT Work locally | Opt-in local lifecycle Hook metadata | Four fields only; no product attestation, full task stream or native screen replacement | Real Hook experiment on the development branch |
+| ChatGPT Work locally | Opt-in local lifecycle Hook metadata | Four base fields; Pre/PostToolUse add authorized tool_name/tool_status (six fields); legacy four-field tool events accepted; no product attestation or task text | Real Hook experiment on the development branch |
 | Work Cloud with local tool access | Different cloud orchestration boundary | Local command/plugin hooks are not supported by the documented cloud path | Not integrated |
 | Codex native interface | Public app-server and optional approved Hooks supply data | This dashboard cannot rewrite native panels | Read-only adapters only |

@@ -2,7 +2,7 @@
 
 **See the work. Inspect the evidence. Decide what is done.**
 
-[简体中文](README.zh-CN.md) · Version 0.1.1-rc.2 · MIT · Local Codex + Work Hook experiment
+[简体中文](README.zh-CN.md) · Version 0.1.1-rc.3 · MIT · Local Codex + Work Hook experiment
 
 An original, local browser dashboard for coding-agent observability. It separates an agent's activity and self-reported plan from verifiable acceptance conditions. No production dependencies, accounts, API keys, telemetry or cloud service.
 
@@ -17,6 +17,8 @@ Use the **source and session selectors on the home page**. Codex logs and local 
 Three measures remain separate: **overall task progress** is unknown without a reliable remaining-work model; **plan progress** counts completed / reported steps; **acceptance pass rate** uses the weighted evidence rules below. Tool counts contribute to none of them. Tools and recent events precede the supporting Git, tests and acceptance views.
 
 Work monitoring is partial: task text, structured plans, tokens, exact context, workspace and task acceptance are not collected by this opt-in probe. Five event types were observed in the user's Windows Work locally tests; the first attempt at the later tool test had a host error, and retry produced PreToolUse, PostToolUse and Stop. See the measured boundary, not test totals, in [WORK-HOOKS](docs/WORK-HOOKS.md).
+
+Codex discovery lists UUIDs without reading log contents. Choose a known Codex session, then **Confirm Codex and allow content access**. This permits local prompt/message/tool and project-evidence reading for that ID. Unknown and Work sessions remain denied; a Hook product label alone grants no access. Revocation clears current content and evidence; permissions persist locally. [Exact scope and compatibility limits](docs/PRIVACY-SCOPE.md).
 
 ## Start on Windows
 
@@ -42,9 +44,9 @@ Installation, custom data folders and removal: [Windows guide](docs/INSTALL.md).
 
 ## What works in 0.1
 
-- Discover recent local Codex sessions; prefer `CODEX_THREAD_ID` when supplied by the launching environment. Otherwise select a recent session explicitly.
+- Discover recent local UUID session candidates (product unknown until confirmed); prefer `CODEX_THREAD_ID` when supplied by the launching environment. Otherwise select a recent session explicitly.
 - Follow task phase, tools, recent events, reported plans and reported usage. Logs are polled every two seconds and snapshots arrive over SSE.
-- Optional loopback app-server WebSocket connection, with read-only list/history polling. No start/resume/approval methods.
+- Optional loopback app-server WebSocket connection, with history polling for locally preauthorized Codex IDs only; no global thread listing. No start/resume/approval methods.
 - Six distinct acceptance states: implemented, auto-verified, awaiting human review, failed, unknown, human-accepted.
 - Inspect Git working changes, commits, implementation files and named test results in dialogs.
 - Record human accept/reject decisions locally. Decisions expire when the evidence or acceptance definition changes.
@@ -99,6 +101,8 @@ The official [app-server](https://learn.chatgpt.com/docs/app-server) transport i
 Token totals and last-request usage are separate. Exact current context occupancy is unknown; the cumulative total is never subtracted from context capacity. Absent timestamps/fields stay unknown. Tests are not inferred from arbitrary console prose or command exit codes.
 
 The dashboard does not change native Work/Codex UI, automatically install Hooks, edit Codex settings, run commands from observed logs, or upload data. The optional Work locally metadata experiment needs separate installation and trust; MCP Apps remain future work.
+
+Hook records contain four base fields; current PreToolUse/PostToolUse records add the two authorized tool fields (six total). Legacy four-field tool records remain accepted. [Field sources and examples](docs/WORK-HOOKS.md#data-path-and-interpretation--数据路径与含义).
 
 ## Project map
 

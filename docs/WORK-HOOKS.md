@@ -9,7 +9,7 @@ This is a metadata feasibility extension to V0.1.0, not a full Work task adapter
 - Repository: `outputs/agent-progress-studio` relative to the task workspace.
 - Existing V0.1.0 release commit: `5e2afd02cc9305da13f19336b7dd639e54937d85`.
 - Preserved baseline branch: `audit-baseline-v0.1.0`.
-- Development branch: `work-locally-hooks-mvp`.
+- Original adaptation branch: `work-locally-hooks-mvp`; RC3 repair branch: `repair-rc2-p01-d01`.
 - Recorder commit: `4e278de357a0f52fad0ae833784ef53dd435459b`.
 
 The baseline already existed before this adaptation; no new commit is represented as an earlier snapshot. Audit the delta from that full baseline SHA to this branch's final commit. Runtime metadata, settings, local proof and trust state are excluded from Git. The separate audit workspace is not part of this change.
@@ -25,9 +25,20 @@ Trusted local lifecycle callback
   → local SSE → browser
 ```
 
-The v0.0.2 recorder saves `event_type`, `session_id`, nullable `turn_id`, and its UTC `timestamp`. After the user explicitly authorized two more metadata fields, PreToolUse/PostToolUse also save `tool_name` (or null) and `tool_status` (started/succeeded/failed/unknown). A result is derived only from top-level integer exit_code/exitCode or boolean isError in an object; it is not guessed from free-form text or callback existence. It discards all other input fields without printing them; it never opens transcripts, reads secrets or makes network requests. The runtime can supply private content on stdin: the probe filters that input in memory rather than asking the host to withhold fields.
+The v0.0.2 recorder saves `event_type`, `session_id`, nullable `turn_id`, and its UTC `timestamp`. After the user explicitly authorized two more metadata fields, PreToolUse/PostToolUse also save `tool_name` (or null) and `tool_status` (started/succeeded/failed/unknown). A result is derived only from integer tool_response.exit_code/tool_response.exitCode or boolean tool_response.isError; it is not guessed from free-form text or callback existence. It discards all other input fields without printing them; it never opens transcripts, reads secrets or makes network requests. The runtime can supply private content on stdin: the probe filters that input in memory rather than asking the host to withhold fields.
 
 保留四项基础元数据；经用户追加授权后，工具回调另存工具名称和结果状态。工具参数、输出正文、提示词、答复、调用 ID 和隐藏推理不保存。`SessionStart` 没有回合 ID 时显示 `null`。时间戳来自记录器，不是用户点击发送或宿主开始处理的时间。
+
+The exact serialized contract is four fields for SessionStart/UserPromptSubmit/Stop and six for current PreToolUse/PostToolUse records. The receiver also accepts legacy **four-field tool records** without fabricating missing tool metadata. It rejects every other key set. Receiver-added event IDs, receivedAt and ingestDelayMs are normalized UI fields, not extra recorder fields. Synthetic examples: [hook-records.example.json](../fixtures/hook-records.example.json); interface: [contract.d.ts](../src/adapters/contract.d.ts).
+
+| Stored field | Source and rule |
+| --- | --- |
+| `event_type` | `input.hook_event_name`, one of the five supported types |
+| `session_id` | `input.session_id`, validated and preserved verbatim |
+| `turn_id` | `input.turn_id ?? null`, never inherited from another callback |
+| `timestamp` | Recorder `new Date().toISOString()`, UTC, not the host event time |
+| `tool_name` | Only Pre/PostToolUse: valid `input.tool_name`, otherwise null |
+| `tool_status` | PreToolUse: started. PostToolUse: integer `tool_response.exit_code ?? tool_response.exitCode` (0 succeeds); otherwise boolean `tool_response.isError`; otherwise unknown |
 
 The receiver rejects records with extra keys, invalid IDs/timestamps, oversized content, unsupported events or symlink files. It reads only the configured nonrecursive spool, up to 10,000 named records. The selected session remains stable as other sessions arrive; the event panel retains the latest 160 events. Missing/empty directories never imply a connection.
 
@@ -37,9 +48,9 @@ The receiver rejects records with extra keys, invalid IDs/timestamps, oversized 
 
 Both enabled local Work and Codex sessions can fire these hooks. Their shared payload does not identify the product. A Hook session therefore starts as **Product unknown**. In Connections, select its full ID, correlate it with a controlled user test, then use **Confirm as Work locally** or **Confirm as Codex**. The UI and exports explicitly call this **user-confirmed**, not runtime-attested. Clearing the label restores unknown.
 
-新会话 ID 可自动发现；产品名称不自动猜测。标记保存在 `.aps-data/hook-origins.json`，与事件文件分离；重启服务后标记保留，当前选择重新发现。标记 API 受现有本机同源和进程令牌保护。
+新会话 ID 可自动发现；产品名称不自动猜测。标记与独立正文授权保存在 `.aps-data/session-access.json`（旧 `hook-origins.json` 仅迁移来源标签，不授予正文权限），与事件文件分离；重启服务后标记保留，当前选择重新发现。标记 API 受现有本机同源和进程令牌保护。
 
-已确认的 Work 会话即使留下同 ID 的 JSONL，也从 Codex 日志列表排除，并拒绝通过日志适配器选择，避免误标来源及读取超出本次授权范围的 Work 内容。尚未标记的共享运行时记录无法自动判定产品；请先在 Hooks 来源确认已知 Work 会话。
+已确认的 Work 会话即使留下同 ID 的 JSONL，也从 Codex 日志列表排除，并拒绝通过日志适配器选择，避免误标来源及读取超出本次授权范围的 Work 内容。尚未确认来源或未单独授权正文的共享运行时会话，默认不打开 JSONL；发现列表仅来自文件名和文件信息。Hooks 的 Codex 标签也不授予正文权限。见 [正文读取边界](PRIVACY-SCOPE.md)。
 
 ## Install, trust, run / 安装、信任与运行
 
@@ -99,7 +110,7 @@ Use the host's plugin controls to disable this plugin, or the official command:
 codex plugin remove aps-work-hook-probe@aps-local-hook-experiment
 ```
 
-Then remove **only this plugin's entry** from the personal/repo marketplace if it is no longer wanted. Do not delete a shared marketplace, global `.codex` directory or another plugin. Retain or archive `.aps-data/work-hooks/events` and `.aps-data/hook-origins.json` as needed. Stop APS before moving its spool; to resume after archival, recreate the same empty spool location. Do not delete historical records automatically. Removing only the dashboard does not uninstall the optional probe.
+Then remove **only this plugin's entry** from the personal/repo marketplace if it is no longer wanted. Do not delete a shared marketplace, global `.codex` directory or another plugin. Retain or archive `.aps-data/work-hooks/events` and `.aps-data/session-access.json` (plus any legacy `hook-origins.json`) as needed. Stop APS before moving its spool; to resume after archival, recreate the same empty spool location. Do not delete historical records automatically. Removing only the dashboard does not uninstall the optional probe.
 
 ## Official references
 

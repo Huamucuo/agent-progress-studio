@@ -8,6 +8,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 process.chdir(root);
 const before = await sourceFingerprint(root);
 const jobs = [
+  ['privacy', ['--test', 'tests/privacy.test.mjs']],
   ['engine', ['--test', 'tests/core.test.mjs']],
   ['monitor', ['--test', 'tests/monitor.test.mjs']],
   ['collectors', ['--test', 'tests/collectors.test.mjs']],

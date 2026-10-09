@@ -6,9 +6,10 @@ if (!strings[language]) language = 'zh-CN';
 let theme = localStorage.getItem('aps-theme') === 'light' ? 'light' : 'dark';
 let view = sessionStorage.getItem('aps-view') || 'overview';
 if (!['overview', 'acceptance', 'evidence', 'events', 'connection'].includes(view)) view = 'overview';
-let snapshot, token, sessions = [], eventFilter = '', errorFilter = false, streamConnected = true, signature = '', connecting = false, endpointDraft = '';
+let snapshot, token, sessions = [], eventFilter = '', errorFilter = false, streamConnected = true, signature = '', connecting = false, endpointDraft = '', renderedScope = '', scopeEpoch = 0;
 const t = key => strings[language][key] || key;
 const isHooks = () => snapshot?.source.mode === 'work-hooks';
+const scopeKey = value => `${value.source.mode}:${value.task.id}:${!!value.source.contentAccess?.readable}`;
 const originLabel = origin => t(origin === 'work-local' ? 'workOrigin' : origin === 'codex' ? 'codexOrigin' : 'unknownOrigin');
 const numeric = value => value == null ? t('unknown') : new Intl.NumberFormat(language).format(value);
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(language, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(value)) : t('unknown');
@@ -20,7 +21,12 @@ async function request(url, data) {
   const response = await fetch(url, data ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-APS-Token': token }, body: JSON.stringify(data) } : undefined);
   const result = await response.json(); if (!response.ok) throw new Error(result.error || response.statusText); return result;
 }
-async function action(url, data) { try { snapshot = await request(url, data); signature = ''; render(); } catch (e) { notify(e.message); } }
+async function updateFromRequest(url, data) {
+  const previous = snapshot, result = await request(url, data);
+  // A newer SSE snapshot wins over a delayed mutation response.
+  if (snapshot === previous) snapshot = result;
+}
+async function action(url, data) { try { await updateFromRequest(url, data); signature = ''; render(); } catch (e) { notify(e.message); } }
 function navigate(next) { view = next; sessionStorage.setItem('aps-view', view); render(); }
 function elapsed() {
   if (!snapshot?.task.startedAt) return t('unknown');
@@ -33,6 +39,9 @@ function elapsed() {
 function privacy() { showDialog(t('privacy'), h('p', {}, t('privacyDetail')), null, t('close')); }
 function render() {
   if (!snapshot) return;
+  const scope = scopeKey(snapshot);
+  if (renderedScope !== scope) { scopeEpoch++; document.getElementById('dialog-root').replaceChildren(); }
+  renderedScope = scope;
   document.documentElement.lang = language; document.documentElement.dataset.theme = theme;
   const root = document.getElementById('app');
   const sidebar = h('aside', { className: 'sidebar' },
@@ -52,6 +61,17 @@ function pageHeading(title, subtitle, actionNode) { return h('div', { className:
 function sourceBanner() {
   const demo = snapshot.source.mode === 'demo';
   return h('div', { className: `source-banner ${demo ? 'demo-banner' : ''}` }, h('span', { className: 'banner-mark' }, demo ? '◈' : '◎'), h('div', {}, h('strong', {}, demo ? t('demoNotice') : isHooks() ? `${t('hooksTitle')} · ${originLabel(snapshot.source.origin)}` : t('localNotice')), h('span', {}, demo ? t('demoDetail') : isHooks() ? t('hooksDetail') : snapshot.source.mode === 'local' ? t('localHint') : t('rpcHint'))), button(t('changeSource'), () => navigate('connection'), { kind: 'link', icon: 'arrow' }));
+}
+function contentAccess() {
+  if (!['local', 'app-server'].includes(snapshot.source.mode) || !snapshot.task.id) return null;
+  const granted = snapshot.source.contentAccess?.granted, id = snapshot.task.id;
+  const allow = () => {
+    const modal = showDialog(t('allowContent'), h('div', {}, h('code', {}, id), h('p', {}, t('allowContentDetail'))),
+      [button(t('allowContentConfirm'), () => { modal.close(); action('/api/session-access', { sessionId: id, decision: 'allow-codex' }); }, { kind: 'primary', testId: 'confirm-content-access' })], t('close'));
+  };
+  return card(t(granted ? 'contentGranted' : 'contentDenied'), t(granted ? 'contentGrantedDetail' : 'contentDeniedDetail'),
+    button(t(granted ? 'revokeContent' : 'allowContent'), granted ? () => action('/api/session-access', { sessionId: id, decision: 'revoke' }) : allow,
+      { kind: 'quiet', testId: granted ? 'revoke-content-access' : 'allow-content-access', disabled: !granted && (snapshot.source.mode !== 'local' || snapshot.source.origin === 'work-local') }));
 }
 function progressCard() {
   const a = snapshot.acceptance;
@@ -83,7 +103,7 @@ function monitorSelector() {
   const list = snapshot.sessions || [];
   const select = h('select', { id: 'monitor-session', testId: 'monitor-session', disabled: connecting || !list.length, onChange: e => selectSource({ mode: snapshot.source.mode, id: e.target.value, endpoint: snapshot.source.endpoint }) },
     !list.length ? h('option', { value: '' }, t(snapshot.source.mode === 'demo' ? 'demo' : 'noSessions')) : null,
-    list.map(s => h('option', { value: s.id }, `${isHooks() ? originLabel(s.origin) : s.title || t('currentTask')} · ${s.id} · ${date(s.updatedAt)}`)));
+    list.map(s => h('option', { value: s.id }, `${originLabel(s.origin)} · ${s.id} · ${date(s.updatedAt)}`)));
   if (snapshot.task.id && !list.some(s => s.id === snapshot.task.id) && snapshot.source.mode !== 'demo') select.append(h('option', { value: snapshot.task.id }, `${snapshot.task.id} · ${t('unlistedSession')}`));
   select.value = snapshot.source.mode === 'demo' ? '' : snapshot.task.id;
   return h('section', { className: 'monitor-selector' }, h('label', { for: 'monitor-source' }, t('source'), source), h('label', { for: 'monitor-session' }, t('selectedTask'), select), h('small', {}, t('autoDiscoverHint')));
@@ -93,7 +113,7 @@ function monitorCard() {
   const active = ['tool_running', 'turn_running'].includes(m.status);
   const step = task.plan.find(p => p.status === 'inProgress');
   return h('section', { className: `monitor-card ${active ? 'observed-active' : ''}` },
-    h('div', { className: 'monitor-top' }, h('div', {}, h('p', { className: 'eyebrow' }, t('agentStatus')), h('h2', { testId: 'monitor-status' }, h('span', { className: 'status-dot' }), t(m.status))), badge(snapshot.source.mode === 'demo' ? t('demo') : isHooks() ? originLabel(snapshot.source.origin) : 'Codex', snapshot.source.mode === 'demo' ? 'awaiting_human' : 'unknown')),
+    h('div', { className: 'monitor-top' }, h('div', {}, h('p', { className: 'eyebrow' }, t('agentStatus')), h('h2', { testId: 'monitor-status' }, h('span', { className: 'status-dot' }), t(m.status))), badge(snapshot.source.mode === 'demo' ? t('demo') : originLabel(snapshot.source.origin), snapshot.source.mode === 'demo' ? 'awaiting_human' : 'unknown')),
     h('h3', { className: 'monitor-title' }, isHooks() ? t('hookSession') : language === 'en' && task.titleEn ? task.titleEn : task.title || t('noTask')),
     h('p', { className: 'monitor-activity', testId: 'monitor-activity' }, m.toolName ? `${t('latestTool')}: ${m.toolName} · ${t(m.outcome)}` : step ? `${t('currentStep')}: ${step.step}` : t(isHooks() ? 'workContentUnknown' : 'noActivityDetail')),
     h('div', { className: 'monitor-meta' }, h('code', {}, task.id || '—'), h('span', {}, `${t('observedActivityAt')}: ${date(m.at)}`)),
@@ -127,7 +147,7 @@ function replayControls() {
 }
 function overviewView() {
   const s = snapshot, u = s.task.usage;
-  return [pageHeading(t('overview'), t('subheading')), monitorSelector(), monitorCard(), progressMeasures(),
+  return [pageHeading(t('overview'), t('subheading')), monitorSelector(), contentAccess(), monitorCard(), progressMeasures(),
     h('div', { className: 'content-grid' }, toolsCard(), eventsCard(true)), planCard(),
     h('section', { className: 'metrics-row' }, metrics(t('usage'), numeric(u.total), t('usageHint')), metrics(t('lastTokens'), numeric(u.last), `${t('context')}: ${numeric(u.contextWindow)}`), metrics(t('elapsed'), elapsed(), s.source.mode === 'demo' ? t('simulationTime') : t('timeHint'))),
     h('p', { className: 'metric-footnote' }, t('exactContext') + ' · ' + t('contextHint')),
@@ -140,7 +160,8 @@ function acceptanceView() {
     card(t('condition'), t('formula'), rows.length ? h('div', { className: 'criteria-list' }, rows.map((c, i) => button(h('span', { className: 'criterion-layout' }, h('span', { className: 'criterion-number mono' }, String(i + 1).padStart(2, '0')), h('span', { className: 'criterion-name' }, h('strong', {}, criterionTitle(c)), h('small', {}, `${c.id} · ${t('weightUnit')} ${c.weight} · ${(c.checks || []).length} ${t('checkEvidence')}`)), status(c.status), icon('arrow')), () => criterionDialog(c), { className: 'criterion-row', testId: `criterion-${c.id}` }))) : empty(t('noCriteria'), t('noCriteriaDetail')))];
 }
 async function detail(kind, id, title) {
-  try { const result = await request(`/api/evidence?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id || '')}`); showDialog(title, h('pre', { className: 'evidence-text' }, result.text || t('noDetail')), null, t('close')); } catch (e) { notify(`${t('fileError')}: ${e.message}`); }
+  const epoch = scopeEpoch;
+  try { const result = await request(`/api/evidence?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id || '')}`); if (epoch !== scopeEpoch) return; showDialog(title, h('pre', { className: 'evidence-text' }, result.text || t('noDetail')), null, t('close')); } catch (e) { if (epoch === scopeEpoch) notify(`${t('fileError')}: ${e.message}`); }
 }
 function criterionDialog(c) {
   const fingerprint = snapshot.evidence.fingerprint, manifestHash = snapshot.evidence.manifestHash;
@@ -148,7 +169,7 @@ function criterionDialog(c) {
   const note = h('textarea', { placeholder: t('note'), rows: 3, testId: 'review-note', 'aria-label': t('note') }, c.review?.note || '');
   let modal;
   const save = async decision => {
-    try { snapshot = await request('/api/review', { criterionId: c.id, decision, note: note.value, fingerprint, manifestHash }); modal.close(); render(); notify(t('saved')); } catch (e) { notify(e.message); }
+    try { await updateFromRequest('/api/review', { criterionId: c.id, decision, note: note.value, fingerprint, manifestHash }); modal.close(); render(); notify(t('saved')); } catch (e) { notify(e.message); }
   };
   modal = showDialog(criterionTitle(c), h('div', {}, h('div', { className: 'detail-status' }, status(c.status), h('span', { className: 'mono tiny' }, c.id)), c.description ? h('p', {}, c.description) : null, c.reviewStale ? h('p', { className: 'warning-text' }, t('staleReview')) : null,
     h('div', { className: 'detail-group' }, h('h3', {}, t('checkEvidence')), (c.checks || []).map((id, i) => h('div', { className: 'check-row' }, h('code', {}, id), status(snapshot.evidence.report?.current ? c.results[i]?.status || 'unknown' : 'unknown'))), button(t('viewReport'), () => detail('report', '', t('tests')), { kind: 'link' })), files,
@@ -175,7 +196,7 @@ function eventsView() {
   return [pageHeading(t('events'), t('eventHint')), isHooks() ? sourceBanner() : null, h('div', { className: 'event-filters' }, input, button(t(errorFilter ? 'all' : 'errors'), () => { errorFilter = !errorFilter; render(); }, { kind: errorFilter ? 'primary' : 'quiet' })), h('section', { className: 'card', id: 'event-results' }, eventRows(false))];
 }
 async function loadSessions() { try { sessions = (await request('/api/sessions')).sessions; render(); } catch (e) { notify(e.message); } }
-async function selectSource(data) { connecting = true; render(); try { snapshot = await request('/api/source', data); sessions = []; eventFilter = ''; errorFilter = false; await loadSessions(); notify(t('success')); } catch (e) { notify(e.message); } finally { connecting = false; render(); } }
+async function selectSource(data) { connecting = true; render(); try { await updateFromRequest('/api/source', data); sessions = []; eventFilter = ''; errorFilter = false; await loadSessions(); notify(t('success')); } catch (e) { notify(e.message); } finally { connecting = false; render(); } }
 function hookStatus() {
   const d = snapshot.source.diagnostics;
   return h('section', { className: 'hook-status' },
@@ -198,7 +219,7 @@ function connectionView() {
     card(t('logs'), t('logsDetail'), h('div', { className: 'connection-content' }, badge(t('readonly'), 'auto_verified'), h('div', { className: 'button-group' }, button(t('connectLocal'), () => selectSource({ mode: 'local' }), { kind: 'primary', disabled: connecting, testId: 'connect-local' }), button(t('discover'), loadSessions, { kind: 'quiet' })))),
     card(t('rpc'), t('rpcDetail'), h('div', { className: 'connection-content' }, h('label', { for: 'endpoint' }, t('endpoint')), endpoint, button(connecting ? t('connecting') : t('connect'), () => selectSource({ mode: 'app-server', endpoint: endpoint.value }), { kind: 'quiet', disabled: connecting }))),
     card(t('demoTitle'), t('demoDescription'), h('div', { className: 'connection-content' }, badge(t('demo'), 'awaiting_human'), h('div', { className: 'button-group' }, button(t('showcase'), () => selectSource({ mode: 'demo', scenario: 'showcase' }), { kind: 'primary', testId: 'demo-showcase' }), button(t('noPlanDemo'), () => selectSource({ mode: 'demo', scenario: 'no-plan' }), { kind: 'quiet', testId: 'demo-no-plan' }))))),
-    isHooks() ? hookStatus() : null, isHooks() ? hookAttribution() : null,
+    isHooks() ? hookStatus() : null, isHooks() ? hookAttribution() : contentAccess(),
     card(t(isHooks() ? 'hookSessions' : 'logs'), `${list.length} · ${t('source')}`, list.length ? h('div', { className: 'session-list' }, list.map(s => button(h('span', { className: 'session-layout' }, h('span', {}, h('strong', {}, isHooks() ? originLabel(s.origin) : s.title || s.id), h('small', { className: 'mono' }, s.id), h('small', { className: 'mono' }, s.cwd)), h('span', {}, s.id === snapshot.task.id ? badge(t('selected'), 'auto_verified') : s.current ? badge(t('currentEnvironment'), 'auto_verified') : null, h('small', {}, `${t('lastUpdated')} ${date(s.updatedAt)}`)), icon('arrow')), () => selectSource({ mode: isHooks() ? 'work-hooks' : snapshot.source.mode === 'app-server' ? 'app-server' : 'local', id: s.id, endpoint: snapshot.source.endpoint }), { className: 'session-row', testId: `session-${s.id}` }))) : empty(t('noSessions'), t(isHooks() ? 'hookSetupHint' : 'noSessionsHint'), button(t('discover'), loadSessions, { kind: 'quiet' }))),
     card(t('boundaries'), '', h('p', { className: 'boundary-copy' }, t('boundariesDetail'))), diagnostics()];
 }
@@ -221,7 +242,7 @@ async function boot() {
     stream.onerror = () => { streamConnected = false; render(); };
     stream.addEventListener('snapshot', event => {
       const next = JSON.parse(event.data), nextSignature = JSON.stringify({ ...next, observedAt: null }); snapshot = next;
-      if (signature !== nextSignature) { signature = nextSignature; if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) render(); else refreshMonitorCard(); }
+      if (signature !== nextSignature) { signature = nextSignature; if (renderedScope !== scopeKey(next) || !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) render(); else refreshMonitorCard(); }
     });
     document.addEventListener('focusout', () => setTimeout(() => { if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) && !document.querySelector('dialog[open]')) render(); }, 0));
   } catch (e) { document.getElementById('app').replaceChildren(empty(t('transportError'), e.message, button(t('connect'), boot, { kind: 'primary' }))); }

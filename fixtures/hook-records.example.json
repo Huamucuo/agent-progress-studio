@@ -1,0 +1,8 @@
+[
+  { "event_type": "SessionStart", "session_id": "synthetic-session", "turn_id": null, "timestamp": "2026-10-09T00:00:00.000Z" },
+  { "event_type": "UserPromptSubmit", "session_id": "synthetic-session", "turn_id": "synthetic-turn", "timestamp": "2026-10-09T00:00:01.000Z" },
+  { "event_type": "PreToolUse", "session_id": "synthetic-session", "turn_id": "synthetic-turn", "timestamp": "2026-10-09T00:00:02.000Z", "tool_name": "Bash", "tool_status": "started" },
+  { "event_type": "PostToolUse", "session_id": "synthetic-session", "turn_id": "synthetic-turn", "timestamp": "2026-10-09T00:00:03.000Z", "tool_name": "Bash", "tool_status": "unknown" },
+  { "event_type": "Stop", "session_id": "synthetic-session", "turn_id": "synthetic-turn", "timestamp": "2026-10-09T00:00:04.000Z" },
+  { "event_type": "PostToolUse", "session_id": "synthetic-legacy-session", "turn_id": "synthetic-turn", "timestamp": "2026-10-09T00:00:05.000Z" }
+]

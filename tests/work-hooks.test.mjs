@@ -96,6 +96,21 @@ async function callback(dir, event, index) {
 }
 const metadata = (type, id = session, at = '2026-10-09T00:00:00.000Z') => ({ event_type: type, session_id: id, turn_id: turn, timestamp: at });
 
+test('D-01 documented examples match producer keys and receiver legacy compatibility', async t => {
+  const examples = JSON.parse(await readFile(new URL('../fixtures/hook-records.example.json', import.meta.url), 'utf8'));
+  const { eventsDir } = await fixture(t);
+  for (const [index, record] of examples.entries()) {
+    await callback(eventsDir, record, index + 1);
+    if (record.session_id === 'synthetic-legacy-session') { assert.equal(Object.keys(record).length, 4); continue; }
+    const projected = projectEvent({ hook_event_name: record.event_type, session_id: record.session_id, turn_id: record.turn_id, tool_name: record.tool_name });
+    assert.deepEqual(Object.keys(projected).sort(), Object.keys(record).sort());
+    assert.deepEqual({ ...projected, timestamp: record.timestamp }, record);
+  }
+  const source = new WorkHookSource(eventsDir); await source.poll();
+  assert.equal(source.diagnostics.rejected, 0); assert.equal(source.sessions.length, 2);
+  assert.equal(source.records.size, examples.length);
+});
+
 test('empty Hook source never claims a connected Work or supplies simulated activity', async t => {
   const { eventsDir } = await fixture(t); const source = new WorkHookSource(eventsDir);
   const state = await source.poll();
@@ -162,10 +177,10 @@ test('live service separates Hook metadata from Codex evidence and persists expl
   const { root, eventsDir } = await fixture(t);
   const codexHome = path.join(root, 'codex'); await mkdir(path.join(codexHome, 'sessions'), { recursive: true });
   const log = [
-    { type: 'session_meta', payload: { id: 'codex-fixture', cwd: root } },
+    { type: 'session_meta', payload: { id: 'abcdef12-abcd-4abc-8abc-abcdef123456', cwd: root } },
     { type: 'event_msg', payload: { type: 'user_message', message: 'Codex fixture still works' } }
   ].map(value => JSON.stringify({ timestamp: '2026-10-09T00:00:00Z', ...value })).join('\n') + '\n';
-  await writeFile(path.join(codexHome, 'sessions/rollout-fixture.jsonl'), log);
+  await writeFile(path.join(codexHome, 'sessions/rollout-abcdef12-abcd-4abc-8abc-abcdef123456.jsonl'), log);
   const options = { port: 0, mode: 'demo', dataDir: path.join(root, 'data'), workHooksDir: eventsDir, workspace: root, codexHome, interval: 0 };
   const server = await createApplication(options);
   t.after(() => server.close());
@@ -180,16 +195,18 @@ test('live service separates Hook metadata from Codex evidence and persists expl
   assert.equal(s.evidence.git.available, false); assert.equal(s.task.usage.total, null);
   assert.equal((await post('/api/hook-origin', { sessionId: session, origin: 'work-local' })).status, 200);
   assert.equal(server.service.snapshot.source.origin, 'work-local'); assert.equal(server.service.snapshot.source.attribution, 'user-confirmed');
-  const persisted = JSON.parse(await readFile(path.join(root, 'data/hook-origins.json'), 'utf8')); assert.equal(persisted[session], 'work-local');
+  const persisted = JSON.parse(await readFile(path.join(root, 'data/session-access.json'), 'utf8')); assert.deepEqual(persisted.sessions[session], { origin: 'work-local', bodyRead: false });
   // Shared runtimes may also leave a JSONL header for Work. Do not relabel or read it as Codex content.
-  await writeFile(path.join(codexHome, 'sessions/work-mirror.jsonl'), JSON.stringify({ type: 'session_meta', payload: { id: session, cwd: root } }) + '\n' + JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'PRIVATE_WORK_CONTENT' } }) + '\n');
+  await writeFile(path.join(codexHome, `sessions/rollout-${session.toUpperCase()}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { id: session, cwd: root } }) + '\n' + JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'PRIVATE_WORK_CONTENT' } }) + '\n');
   assert.equal((await server.service.discover()).some(s => s.id === session), false);
   assert.equal((await post('/api/source', { mode: 'local', id: session })).status, 400);
   assert.doesNotMatch(JSON.stringify(server.service.snapshot), /PRIVATE_WORK_CONTENT/);
   const restarted = await createApplication({ ...options, mode: 'work-hooks' }); t.after(() => restarted.close());
   assert.equal(restarted.service.snapshot.source.origin, 'work-local');
   assert.equal((await post('/api/hook-origin', { sessionId: 'not-found', origin: 'codex' })).status, 400);
-  assert.equal((await post('/api/source', { mode: 'local', id: 'codex-fixture' })).status, 200);
+  assert.equal((await post('/api/source', { mode: 'local', id: 'abcdef12-abcd-4abc-8abc-abcdef123456' })).status, 200);
+  assert.equal(server.service.snapshot.task.title, '');
+  assert.equal((await post('/api/session-access', { sessionId: 'abcdef12-abcd-4abc-8abc-abcdef123456', decision: 'allow-codex' })).status, 200);
   assert.equal(server.service.snapshot.task.title, 'Codex fixture still works');
   assert.equal(server.service.snapshot.source.origin, 'codex'); assert.equal(server.service.snapshot.workspace, root);
   assert.deepEqual(server.service.snapshot.hookSessions, []);
@@ -206,7 +223,7 @@ test('known Work sessions are excluded before the Codex discovery limit', async 
     const id = `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`; excluded.add(id);
     await writeFile(path.join(folder, `rollout-${id}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { id } }) + '\nPRIVATE_BODY');
   }
-  await writeFile(path.join(folder, 'older-codex.jsonl'), JSON.stringify({ type: 'session_meta', payload: { id: 'codex' } }) + '\n');
-  const { utimes } = await import('node:fs/promises'); await utimes(path.join(folder, 'older-codex.jsonl'), new Date(0), new Date(0));
-  assert.deepEqual((await discoverSessions(root, 60, excluded)).map(s => s.id), ['codex']);
+  await writeFile(path.join(folder, 'abcdef12-abcd-4abc-8abc-abcdef123456.jsonl'), JSON.stringify({ type: 'session_meta', payload: { id: 'abcdef12-abcd-4abc-8abc-abcdef123456' } }) + '\n');
+  const { utimes } = await import('node:fs/promises'); await utimes(path.join(folder, 'abcdef12-abcd-4abc-8abc-abcdef123456.jsonl'), new Date(0), new Date(0));
+  assert.deepEqual((await discoverSessions(root, 60, excluded)).map(s => s.id), ['abcdef12-abcd-4abc-8abc-abcdef123456']);
 });

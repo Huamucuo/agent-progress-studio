@@ -36,17 +36,19 @@ export async function createApplication(options = {}) {
         if (url.pathname === '/api/demo') return json(res, 200, await service.demo(input.action));
         if (url.pathname === '/api/review') return json(res, 200, await service.review(input));
         if (url.pathname === '/api/hook-origin') return json(res, 200, await service.attributeHook(input));
+        if (url.pathname === '/api/session-access') return json(res, 200, await service.sessionAccess(input));
         return json(res, 404, { error: 'Not found' });
       }
       if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
-      if (url.pathname === '/api/bootstrap') return json(res, 200, { token, version: '0.1.1-rc.2' });
-      if (url.pathname === '/api/snapshot') return json(res, 200, service.snapshot);
+      if (url.pathname === '/api/bootstrap') return json(res, 200, { token, version: '0.1.1-rc.3' });
+      if (url.pathname === '/api/snapshot') return json(res, 200, await service.refresh());
       if (url.pathname === '/api/sessions') return json(res, 200, { sessions: service.mode === 'work-hooks' ? service.snapshot.hookSessions : service.mode === 'app-server' ? service.source.sessions : await service.discover() });
       if (url.pathname === '/api/evidence') return json(res, 200, { text: await service.detail(url.searchParams.get('kind'), url.searchParams.get('id')) });
-      if (url.pathname === '/api/export') { res.setHeader('Content-Disposition', 'attachment; filename="agent-progress-report.json"'); return json(res, 200, service.snapshot); }
+      if (url.pathname === '/api/export') { res.setHeader('Content-Disposition', 'attachment; filename="agent-progress-report.json"'); return json(res, 200, await service.refresh()); }
       if (url.pathname === '/api/stream') {
+        const snapshot = await service.refresh();
         res.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
-        res.write(`event: snapshot\ndata: ${JSON.stringify(service.snapshot)}\n\n`); streams.add(res);
+        res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`); streams.add(res);
         req.on('close', () => streams.delete(res)); return;
       }
       const asset = assets.get(url.pathname);
@@ -69,7 +71,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   if (!Number.isInteger(port) || port < 1 || port > 65535) { console.error('Invalid --port'); process.exit(1); }
   try {
     const app = await createApplication({ port, mode: args.includes('--demo') ? 'demo' : args.includes('--work-hooks') ? 'work-hooks' : 'local', workspace: option('--workspace'), codexHome: option('--codex-home'), dataDir: option('--data-dir'), workHooksDir: option('--work-hooks-dir') });
-    console.log(`Agent Progress Studio 0.1.1-rc.2\nLocal dashboard: ${app.url}\nLocal event observer. Press Ctrl+C to stop.`);
+    console.log(`Agent Progress Studio 0.1.1-rc.3\nLocal dashboard: ${app.url}\nLocal event observer. Press Ctrl+C to stop.`);
     const stop = async () => { await app.close(); process.exit(0); };
     process.on('SIGINT', stop); process.on('SIGTERM', stop);
   } catch (e) { console.error(e.code === 'EADDRINUSE' ? `Port ${port} is in use. Try --port ${port + 1}.` : e.message); process.exitCode = 1; }

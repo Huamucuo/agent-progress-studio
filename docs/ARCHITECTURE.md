@@ -39,8 +39,8 @@ Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific 
 
 ## Collection and scope
 
-- Local logs: bounded discovery under one Codex data root; complete newline records only; UTF-8 chunk boundaries preserved; malformed records skipped with diagnostics. Poll and rediscover every two seconds while selected. Snapshots include the current session list; new arrivals never steal an explicit selection.
-- App-server: literal loopback endpoint, initialize handshake, list/read method allowlist. Current-turn history only; unsolicited events must match the selected thread. No auto-resume or approval response.
+- Local logs: filename/stat-only discovery with canonical UUIDs and separate explicit Codex content grants; bounded discovery under one Codex data root; complete newline records only; UTF-8 chunk boundaries preserved; malformed records skipped with diagnostics. Poll and rediscover every two seconds while selected. Snapshots include the current session list; new arrivals never steal an explicit selection.
+- App-server: literal loopback endpoint, initialize handshake, authorized thread/read only. Global thread/list and unsolicited notifications are disabled; replies require a leading correlated numeric ID before payload parsing. Current-turn history only. No auto-resume or approval response.
 - Local Hooks: bounded nonrecursive metadata spool, independent from Codex logs. Discover session IDs without stealing selection. Product origin is unknown until explicitly labeled; Hook mode never inherits a workspace or acceptance evidence. [Detailed contract and limits](WORK-HOOKS.md).
 - Git: selected workspace must be the repository root. No optional index locks, textconv or external diff helpers. Only sanitized indexed paths enter the diff; sensitive paths are omitted before the command is constructed. Untracked files can be inspected as bounded text, but are not represented as tracked Git diffs.
 - Evidence files: realpath confinement, traversal/sensitive-path rejection, 2 MiB limit. No arbitrary file-read API; detail IDs must already exist in the evidence index.
@@ -49,7 +49,7 @@ Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific 
 
 Human decisions are written atomically into `.aps-data/reviews.json`, keyed by source type, session, workspace and task ID. Accept/reject/clear actions require same-origin access and a per-process token. The service refreshes evidence before committing a review and rejects stale dialog fingerprints. Export is a local download, not an upload.
 
-Only UI language/theme are saved in localStorage; selected navigation uses sessionStorage. Hook product labels persist in `.aps-data/hook-origins.json`; they are user assertions, not host-provided identity. No Codex credentials, settings or original logs are written by the dashboard. The current source choice is intentionally not persisted across server restarts; CLI flags choose the initial adapter.
+Only UI language/theme are saved in localStorage; selected navigation uses sessionStorage. Hook product labels and separate log/RPC body grants persist in `.aps-data/session-access.json`; legacy `hook-origins.json` labels migrate with no body grant; they are user assertions, not host-provided identity. No Codex credentials, settings or original logs are written by the dashboard. The current source choice is intentionally not persisted across server restarts; CLI flags choose the initial adapter.
 
 人工验收存于本工具目录，不写入 Codex 或用户仓库。关闭/重新启动不会丢失决定；修改源码、测试报告或验收定义会使旧决定失效。来源选择重启后重新发现，防止误连历史任务。
 
@@ -73,4 +73,4 @@ Runtime dependencies: none. Optional Playwright development dependency supplies 
 
 The browser also expires cached nonterminal observations with its own clock, so a stalled SSE feed cannot leave an old running label indefinitely. An SSE error replaces the main activity label with disconnected/current-activity-unknown. Demo review phases and timestamp-free app-server terminal history remain explicit; history without a completion timestamp does not acquire one.
 
-User-confirmed Work IDs are excluded from Codex discovery before the session limit. Standard rollout filenames allow exclusion before opening the file or consuming the 300-file candidate budget. With exclusions configured, custom filenames require a bounded header-only read before deciding whether they belong to Work; these legacy names are slower to discover. Unconfirmed shared-runtime sessions cannot be classified reliably by filename alone.
+All log and RPC content gates, UUID normalization, cached-state clearing and evidence-path protection are defined in [PRIVACY-SCOPE](PRIVACY-SCOPE.md). Discovery never reads even the first line. Unknown product identity defaults to denied; custom filenames are unsupported. The header check only validates an already-authorized ID before the body reader can run. Source labels alone do not grant access. Four/six-field Hook records and their field sources are documented in [WORK-HOOKS](WORK-HOOKS.md); the recorder is unchanged by RC3.

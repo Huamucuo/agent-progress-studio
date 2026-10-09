@@ -114,22 +114,56 @@ try {
     await page.getByTestId('monitor-source').selectOption('local');
     const logDir = path.join(dir, 'codex/sessions'); await mkdir(logDir, { recursive: true });
     const row = (type, payload) => JSON.stringify({ type, payload, timestamp: new Date().toISOString() }) + '\n';
-    await writeFile(path.join(logDir, 'first.jsonl'), row('session_meta', { id: 'first-codex', cwd: dir }));
-    await page.getByTestId('monitor-session').locator('option[value="first-codex"]').waitFor({ state: 'attached' });
-    await writeFile(path.join(logDir, 'second.jsonl'), row('session_meta', { id: 'second-codex', cwd: dir }));
-    await page.getByTestId('monitor-session').locator('option[value="second-codex"]').waitFor({ state: 'attached' });
-    assert.equal(await page.getByTestId('monitor-session').inputValue(), 'first-codex');
-    await page.getByTestId('monitor-session').selectOption('second-codex');
-    await appendFile(path.join(logDir, 'second.jsonl'), row('event_msg', { type: 'user_message', message: 'New selected Codex task' }) + row('event_msg', { type: 'task_started', turn_id: 'codex-turn' }));
+    await writeFile(path.join(logDir, 'abcdef12-abcd-4abc-8abc-abcdef123456.jsonl'), row('session_meta', { id: 'abcdef12-abcd-4abc-8abc-abcdef123456', cwd: dir }));
+    await page.getByTestId('monitor-session').locator('option[value="abcdef12-abcd-4abc-8abc-abcdef123456"]').waitFor({ state: 'attached' });
+    await writeFile(path.join(logDir, 'feedbeef-abcd-4abc-8abc-abcdef123456.jsonl'), row('session_meta', { id: 'feedbeef-abcd-4abc-8abc-abcdef123456', cwd: dir }));
+    await page.getByTestId('monitor-session').locator('option[value="feedbeef-abcd-4abc-8abc-abcdef123456"]').waitFor({ state: 'attached' });
+    assert.equal(await page.getByTestId('monitor-session').inputValue(), 'abcdef12-abcd-4abc-8abc-abcdef123456');
+    await page.getByTestId('monitor-session').selectOption('feedbeef-abcd-4abc-8abc-abcdef123456');
+    await page.getByTestId('allow-content-access').click();
+    await page.getByTestId('confirm-content-access').click();
+    await appendFile(path.join(logDir, 'feedbeef-abcd-4abc-8abc-abcdef123456.jsonl'), row('event_msg', { type: 'user_message', message: 'New selected Codex task' }) + row('event_msg', { type: 'task_started', turn_id: 'codex-turn' }));
     await page.getByRole('heading', { name: 'New selected Codex task', exact: true }).waitFor();
     await page.getByTestId('monitor-status').filter({ hasText: 'Turn execution observed' }).waitFor();
     assert.equal(await page.getByTestId('overall-progress').innerText(), 'Unknown');
+  });
+  await check('content-revocation-clears-monitor-and-export-and-survives-reload', async () => {
+    await page.getByTestId('revoke-content-access').click();
+    await page.getByTestId('allow-content-access').waitFor();
+    assert.doesNotMatch(await page.locator('main').innerText(), /New selected Codex task/);
+    const report = await (await page.request.get(app.url + '/api/export')).json();
+    assert.equal(report.task.title, ''); assert.equal(report.workspace, null);
+    await page.reload(); await page.getByTestId('allow-content-access').waitFor();
+    await page.screenshot({ path: 'test-results/content-permission-light-en.png', fullPage: true });
   });
   await check('manual-discovery-from-demo-remains-usable', async () => {
     await page.getByTestId('monitor-source').selectOption('demo');
     await page.getByTestId('nav-connection').click();
     await page.getByRole('button', { name: 'Discover sessions', exact: true }).first().click();
-    await page.getByTestId('session-second-codex').waitFor();
+    await page.getByTestId('session-feedbeef-abcd-4abc-8abc-abcdef123456').waitFor();
+  });
+  await check('delayed-evidence-response-cannot-reopen-an-old-source-dialog', async () => {
+    let captured, release, fulfilled;
+    const ready = new Promise(resolve => { captured = resolve; }), delivery = new Promise(resolve => { release = resolve; }), done = new Promise(resolve => { fulfilled = resolve; });
+    await page.route('**/api/evidence?*', async route => {
+      const response = await route.fetch(); captured(); await delivery; await route.fulfill({ response }); fulfilled();
+    });
+    await page.getByTestId('nav-evidence').click(); await page.getByTestId('open-diff').click(); await ready;
+    const { token } = await (await page.request.get(app.url + '/api/bootstrap')).json();
+    await page.request.post(app.url + '/api/source', { headers: { 'X-APS-Token': token }, data: { mode: 'local' } });
+    await page.getByTestId('nav-overview').click();
+    await page.waitForFunction(() => document.querySelector('#monitor-source')?.value === 'local');
+    release(); await done; await page.waitForTimeout(250);
+    assert.equal(await page.getByRole('dialog').count(), 0); await page.unroute('**/api/evidence?*');
+  });
+  await check('scope-change-clears-a-focused-evidence-dialog', async () => {
+    await page.getByTestId('monitor-source').selectOption('demo');
+    await page.getByTestId('nav-acceptance').click(); await page.getByTestId('criterion-review').click();
+    await page.getByTestId('review-note').fill('Focused review must close when its source loses scope');
+    const { token } = await (await page.request.get(app.url + '/api/bootstrap')).json();
+    const changed = await page.request.post(app.url + '/api/source', { headers: { 'X-APS-Token': token }, data: { mode: 'local' } });
+    assert.equal(changed.status(), 200);
+    await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 3000 });
   });
   await check('browser-expires-cached-running-state-and-exposes-feed-loss', async () => {
     await page.getByTestId('nav-overview').click(); await page.getByTestId('monitor-source').selectOption('work-hooks');

@@ -10,3 +10,17 @@ export interface SnapshotHost {
   subscribe?(onSnapshot: (snapshot: unknown) => void): () => void;
   openEvidence(kind: 'diff' | 'commit' | 'file' | 'report', id?: string): Promise<string>;
 }
+
+/** Exact on-disk Hook metadata; receiver accepts legacy four-field tool events. */
+export type HookEventType = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'Stop';
+export interface HookBaseRecord {
+  event_type: HookEventType; // input.hook_event_name
+  session_id: string; // input.session_id, preserved verbatim
+  turn_id: string | null; // input.turn_id ?? null
+  timestamp: string; // recorder UTC ISO timestamp, not host event time
+}
+export type HookToolRecord = Omit<HookBaseRecord, 'event_type'> & (
+  { event_type: 'PreToolUse'; tool_name: string | null; tool_status: 'started' } |
+  { event_type: 'PostToolUse'; tool_name: string | null; tool_status: 'succeeded' | 'failed' | 'unknown' }
+);
+export type HookRecord = HookBaseRecord | HookToolRecord;
