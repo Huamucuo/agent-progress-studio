@@ -131,6 +131,7 @@ export class AppServerSource {
         if (!Array.isArray(page.data)) throw new Error('Invalid turn page'); turn = page.data[0]; this.diagnostics.historyPaging = 'SUPPORTED';
       } catch (e) { this.diagnostics.historyPaging = e.code === 'RPC_METHOD_UNSUPPORTED' ? 'UNSUPPORTED: thread/turns/list' : 'UNKNOWN: history page unavailable'; }
     }
+    if (turn && this.retiredTurns.has(turn.id)) return this.state;
     if (turn && ['summary', 'notLoaded'].includes(turn.itemsView)) {
       try {
         let cursor = null, count = 0; const items = [], seen = new Set();
@@ -145,6 +146,7 @@ export class AppServerSource {
     if (!this.live(channel)) return this.deny();
     if (before !== this.notificationSeq) return this.state;
     if (turn) {
+      if (this.state.turnId && this.state.turnId !== turn.id) this.retiredTurns.add(this.state.turnId);
       for (const item of turn.items || []) for (const e of normalizeNotification({ method: item.status === 'inProgress' ? 'item/started' : 'item/completed', params: { threadId: channel.id, turnId: turn.id, item } }, `history:${turn.id}:${item.id}`)) state = reduceEvent(state, e);
       state.turnId = turn.id; state.phase = { completed: 'completed', failed: 'failed', interrupted: 'interrupted', inProgress: 'executing' }[turn.status] || state.phase;
       state.startedAt = time(turn.startedAt); state.endedAt = time(turn.completedAt);

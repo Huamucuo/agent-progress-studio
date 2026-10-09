@@ -42,3 +42,21 @@ test('O02 revoke barrier is immediate while collection queue remains blocked', a
   assert.equal(app.service.access.can(ref, 'content'), false); assert.equal(app.service.snapshot, null);
   release(); await assert.rejects(refresh, /scope changed/); await revoke; assert.equal(app.service.snapshot.task.title, '');
 });
+
+test('T-02 delayed revoke HTTP response cannot override a newer explicit grant', async t => {
+  const { app, post } = await fixture(t); let entered, release;
+  const ready = new Promise(r => { entered = r; }), gate = new Promise(r => { release = r; });
+  const original = app.service.sessionAccess.bind(app.service);
+  app.service.sessionAccess = async input => {
+    const result = await original(input);
+    if (input.decision === 'revoke') { entered(); await gate; }
+    return result;
+  };
+  const revoke = post({ sessionId: id, decision: 'revoke', ...scope(app) }); await ready;
+  assert.equal(app.service.access.can(app.service.currentRef(), 'content'), false);
+  const granted = await post({ sessionId: id, decision: 'allow-codex', ...scope(app) });
+  assert.equal(granted.status, 200); assert.match(await granted.text(), /PRIVATE_ORDER_FIXTURE/);
+  release(); const stale = await revoke; assert.equal(stale.status, 400);
+  assert.equal(app.service.access.can(app.service.currentRef(), 'content'), true);
+  assert.match(JSON.stringify(await (await fetch(app.url + '/api/export')).json()), /PRIVATE_ORDER_FIXTURE/);
+});

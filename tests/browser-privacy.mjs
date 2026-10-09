@@ -43,10 +43,15 @@ try {
     const started = performance.now(); await deny();
     await second.getByTestId('allow-content-access').waitFor();
     await page.getByTestId('allow-content-access').waitFor(); const delay = performance.now() - started;
-    await page.evaluate(() => { window.__apsTest.hold = false; window.__apsTest.frames.splice(0).forEach(f => f()); });
     assert.doesNotMatch(await page.locator('#app').innerText(), /SYNTHETIC_RC4_PRIVATE_TASK|PRIVATE_PLAN/);
     assert.doesNotMatch(JSON.stringify(await (await page.request.get(app.url + '/api/export')).json()), /SYNTHETIC_RC4_PRIVATE_TASK|PRIVATE_PLAN/);
+    const log = options.codexHome + '/sessions/' + id + '.jsonl';
+    await fs.writeFile(log, (await fs.readFile(log, 'utf8')).replace(sentinel, 'CURRENT_REGRANT_TASK').replace('PRIVATE_PLAN', 'CURRENT_REGRANT_PLAN'));
     await grant(); await page.getByTestId('revoke-content-access').waitFor();
+    await page.getByText('CURRENT_REGRANT_PLAN', { exact: true }).waitFor();
+    await page.evaluate(() => { window.__apsTest.hold = false; window.__apsTest.frames.splice(0).forEach(f => f()); });
+    assert.doesNotMatch(await page.locator('#app').innerText(), /SYNTHETIC_RC4_PRIVATE_TASK|PRIVATE_PLAN/);
+    assert.match(await page.locator('#app').innerText(), /CURRENT_REGRANT_PLAN/);
     results.push({ metric: 'twoTabsRevokeObservedMs', value: delay, synthetic: true });
   });
   await check('O02 delayed authorized export cannot download after revocation', async () => {
@@ -56,11 +61,40 @@ try {
     await page.getByTestId('export').click(); await waiting; await deny(); await page.getByTestId('allow-content-access').waitFor(); release(); await page.waitForTimeout(250);
     assert.equal(downloads, 0); page.off('download', listener); await page.unroute('**/api/export');
   });
+  await check('T-03 final browser consumption cannot cross an asynchronous authority invalidation', async () => {
+    await grant(); await page.getByTestId('revoke-content-access').waitFor();
+    await page.evaluate(async () => {
+      const { StateReceiver } = await import('/state-receiver.mjs'), accept = StateReceiver.prototype.accept, click = HTMLAnchorElement.prototype.click;
+      let triggered = false; window.__applyTrace = { invalidated: false, clicks: [] };
+      StateReceiver.prototype.accept = function (value, ticket) {
+        const allowed = accept.call(this, value, ticket);
+        if (allowed && ticket.kind === 'export' && !triggered) {
+          triggered = true; queueMicrotask(() => { window.__applyTrace.invalidated = true; window.dispatchEvent(new Event('offline')); });
+        }
+        return allowed;
+      };
+      HTMLAnchorElement.prototype.click = function () { if (this.download) window.__applyTrace.clicks.push(window.__applyTrace.invalidated); return click.call(this); };
+      window.__restoreApply = () => { StateReceiver.prototype.accept = accept; HTMLAnchorElement.prototype.click = click; };
+    });
+    await page.getByTestId('export').click(); await page.waitForFunction(() => window.__applyTrace.invalidated);
+    const trace = await page.evaluate(() => window.__applyTrace); assert.deepEqual(trace.clicks, [false], 'Valid export completes before invalidation, never after it');
+    await page.evaluate(() => { window.__restoreApply(); window.dispatchEvent(new Event('online')); }); await page.getByTestId('revoke-content-access').waitFor();
+    await deny(); await page.getByTestId('allow-content-access').waitFor();
+  });
   await check('O03 restart and old bootstrap cannot replace new authority instance', async () => {
+    let entered, release; const captured = new Promise(r => { entered = r; }), gate = new Promise(r => { release = r; }); let hold = true;
+    await page.route('**/api/bootstrap', async route => {
+      if (!hold) return route.continue(); hold = false;
+      const response = await route.fetch(); entered(); await gate; await route.fulfill({ response });
+    });
     const old = await (await page.request.get(app.url + '/api/bootstrap')).json(); const port = Number(new URL(app.url).port);
-    await app.close(); app = await createApplication({ ...options, port }); await ready(page);
+    await page.evaluate(() => window.dispatchEvent(new Event('online'))); await captured;
+    await app.close(); app = await createApplication({ ...options, port });
+    await page.evaluate(() => window.dispatchEvent(new Event('online'))); await page.getByTestId('allow-content-access').waitFor();
     const next = await (await page.request.get(app.url + '/api/bootstrap')).json(); assert.notEqual(old.access.authorityInstanceId, next.access.authorityInstanceId);
-    assert.doesNotMatch(await page.locator('#app').innerText(), /SYNTHETIC_RC4_PRIVATE_TASK/);
+    release(); await page.waitForTimeout(250); await page.unroute('**/api/bootstrap');
+    assert.ok(await page.getByTestId('allow-content-access').isVisible());
+    assert.doesNotMatch(await page.locator('#app').innerText(), /SYNTHETIC_RC4_PRIVATE_TASK|CURRENT_REGRANT_TASK/);
   });
   await check('O04 background/offline restoration requires fresh bootstrap before private display', async () => {
     await grant(); await page.getByTestId('revoke-content-access').waitFor();

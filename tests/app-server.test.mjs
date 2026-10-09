@@ -98,3 +98,12 @@ test('R05 official turn/item page shapes preserve turn identity and legacy fallb
   f.reply = request => request.method === 'thread/turns/list' || request.method === 'thread/items/list' ? { error: { code: -32601, message: 'unsupported' } } : original(request);
   await source.poll(); assert.match(source.diagnostics.historyPaging, /UNSUPPORTED/); assert.equal(source.state.title, 'AUTHORIZED_HISTORY');
 });
+
+test('T-03 history that lags a delivered new turn cannot restore the retired turn', async t => {
+  const { f, source } = await client(t);
+  f.emit('turn/started', { threadId: ref.id, turn: { id: 'turn-two', status: 'inProgress' } });
+  f.emit('turn/plan/updated', { threadId: ref.id, turnId: 'turn-two', plan: [{ step: 'CURRENT_TURN_PLAN', status: 'inProgress' }] });
+  await source.poll(); assert.equal(source.state.turnId, 'turn-two'); assert.equal(source.state.plan[0].step, 'CURRENT_TURN_PLAN');
+  f.history.turns = [{ id: 'turn-two', status: 'completed', items: [] }];
+  await source.poll(); assert.equal(source.state.phase, 'completed'); assert.equal(source.state.plan[0].step, 'CURRENT_TURN_PLAN');
+});

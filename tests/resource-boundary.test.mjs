@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { syncBuiltinESMExports } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import childProcess from 'node:child_process';
+import { promisify } from 'node:util';
 import { SessionAccess, sessionRef } from '../src/core/session-access.mjs';
 import { ResourceRegistry, canonicalPath } from '../src/core/resource-registry.mjs';
 import { DataGateway } from '../src/collectors/data-gateway.mjs';
@@ -141,4 +143,26 @@ test('T-06 Git cannot execute extdiff/textconv/fsmonitor or inherited command co
   const allowed = await collectEvidence(worktree, await evidenceOptions(worktree)); assert.equal(allowed.git.available, true);
   git('config', 'include.path', f.b); const audit = auditIO(t, f.root);
   assert.equal((await collectEvidence(f.project, await evidenceOptions(f.project))).git.available, false); assert.equal(audit.forFile(f.b).length, 0);
+});
+
+test('T-06 implicit Git inputs cannot alias archived B: reject before any Git subprocess or body open', async t => {
+  const f = await fixture(t), git = (...args) => execFileSync('git', ['-c', 'core.fsmonitor=false', '-C', f.project, ...args], { windowsHide: true });
+  git('init', '-q'); git('add', '.'); git('-c', 'user.name=APS Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture');
+  await fs.writeFile(f.project + '/app.txt', 'changed');
+  const { context } = await evidenceOptions(f.project, { codexHomes: [f.home] }), audit = auditIO(t, f.root);
+  let spawns = 0; const original = childProcess.execFile;
+  const traced = (...args) => { spawns++; return original(...args); };
+  traced[promisify.custom] = (...args) => { spawns++; return original[promisify.custom](...args); };
+  childProcess.execFile = traced; syncBuiltinESMExports();
+  t.after(() => { childProcess.execFile = original; syncBuiltinESMExports(); });
+  for (const relative of ['.gitattributes', '.gitignore', '.git/info/attributes', '.git/packed-refs', '.git/sharedindex.private']) {
+    const file = path.join(f.project, relative); await fs.link(f.b, file); const before = spawns;
+    await assert.rejects(context.gateway.git(context, 'diff', ['app.txt']), /ambiguous|linked|unsafe|alias/i, relative);
+    assert.equal(spawns, before, `${relative}: Git never started`); assert.equal(audit.forFile(file).length, 0); await fs.unlink(file);
+  }
+  const alternate = f.project + '/.git/objects/info/alternates'; await fs.writeFile(alternate, path.dirname(f.b));
+  const before = spawns; await assert.rejects(context.gateway.git(context, 'diff', ['app.txt']), /alternate/i);
+  assert.equal(spawns, before); assert.equal(audit.forFile(alternate).length, 0); assert.equal(audit.forFile(f.b).length, 0); await fs.unlink(alternate);
+  await fs.writeFile(f.project + '/.gitattributes', '*.txt text\n');
+  assert.match(await context.gateway.git(context, 'diff', ['app.txt']), /changed/); assert.ok(spawns > before, 'Normal Git remains usable');
 });

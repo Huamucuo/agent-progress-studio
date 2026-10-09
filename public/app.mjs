@@ -31,10 +31,12 @@ async function wireRequest(url, data) {
   const response = await fetch(url, data ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-APS-Token': token }, body: JSON.stringify(data) } : { cache: 'no-store' });
   const result = await response.json(); if (!response.ok) throw new Error(result.error || response.statusText); return result;
 }
-async function request(url, data, kind = 'control') {
+async function request(url, data, kind, consume) {
+  if (typeof consume !== 'function') throw new Error('A synchronous response consumer is required');
   const ticket = receiver.ticket(kind), result = await wireRequest(url, data ? { ...data, ...mutationScope() } : undefined);
   if (!receiver.accept(result, ticket)) throw new Error(language === 'en' ? 'Scope changed. Refresh and retry.' : '访问范围已变化，请刷新后重试。');
-  return result;
+  // No await/promise continuation between authorization and the final UI effect.
+  return consume(result);
 }
 async function updateFromRequest(url, data) {
   const scope = mutationScope();
@@ -44,14 +46,15 @@ async function updateFromRequest(url, data) {
     finally { await boot(); }
     return;
   }
-  const result = await request(url, data); if (!snapshot || result.access.publicationSeq >= snapshot.access.publicationSeq) snapshot = result;
+  await request(url, data, 'control', result => { if (!snapshot || result.access.publicationSeq >= snapshot.access.publicationSeq) snapshot = result; });
 }
 async function action(url, data) { try { await updateFromRequest(url, data); signature = ''; render(); } catch (e) { notify(e.message); await boot(); } }
 async function exportReport() {
   try {
-    const result = await request('/api/export', undefined, 'export');
-    const href = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
-    const anchor = h('a', { href, download: 'agent-progress-report.json' }); anchor.click(); setTimeout(() => URL.revokeObjectURL(href), 0);
+    await request('/api/export', undefined, 'export', result => {
+      const href = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
+      const anchor = h('a', { href, download: 'agent-progress-report.json' }); anchor.click(); setTimeout(() => URL.revokeObjectURL(href), 0);
+    });
   } catch (e) { notify(e.message); }
 }
 function navigate(next) { view = next; sessionStorage.setItem('aps-view', view); render(); }
@@ -195,7 +198,7 @@ function acceptanceView() {
 }
 async function detail(kind, id, title) {
   const epoch = scopeEpoch;
-  try { const result = await request(`/api/evidence?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id || '')}`, undefined, 'detail'); if (epoch !== scopeEpoch) return; showDialog(title, h('pre', { className: 'evidence-text' }, result.text || t('noDetail')), null, t('close')); } catch (e) { if (epoch === scopeEpoch) notify(`${t('fileError')}: ${e.message}`); }
+  try { await request(`/api/evidence?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id || '')}`, undefined, 'detail', result => { if (epoch !== scopeEpoch) return; showDialog(title, h('pre', { className: 'evidence-text' }, result.text || t('noDetail')), null, t('close')); }); } catch (e) { if (epoch === scopeEpoch) notify(`${t('fileError')}: ${e.message}`); }
 }
 function criterionDialog(c) {
   const fingerprint = snapshot.evidence.fingerprint, manifestHash = snapshot.evidence.manifestHash;
@@ -229,7 +232,7 @@ function eventsView() {
   const input = h('input', { type: 'search', placeholder: t('searchEvents'), value: eventFilter, 'aria-label': t('searchEvents'), onInput: e => { eventFilter = e.target.value; document.getElementById('event-results').replaceChildren(eventRows(false)); } });
   return [pageHeading(t('events'), t('eventHint')), isHooks() ? sourceBanner() : null, h('div', { className: 'event-filters' }, input, button(t(errorFilter ? 'all' : 'errors'), () => { errorFilter = !errorFilter; render(); }, { kind: errorFilter ? 'primary' : 'quiet' })), h('section', { className: 'card', id: 'event-results' }, eventRows(false))];
 }
-async function loadSessions() { try { sessions = (await request('/api/sessions', undefined, 'sessions')).sessions; render(); } catch (e) { notify(e.message); } }
+async function loadSessions() { try { await request('/api/sessions', undefined, 'sessions', result => { sessions = result.sessions; render(); }); } catch (e) { notify(e.message); } }
 async function selectSource(data) { connecting = true; render(); try { await updateFromRequest('/api/source', data); sessions = []; eventFilter = ''; errorFilter = false; await loadSessions(); notify(t('success')); } catch (e) { notify(e.message); } finally { connecting = false; render(); } }
 function hookStatus() {
   const d = snapshot.source.diagnostics;
@@ -274,7 +277,8 @@ async function boot() {
     const bootstrap = await wireRequest('/api/bootstrap');
     if (!receiver.bootstrap(bootstrap, handshake)) return;
     token = bootstrap.token;
-    snapshot = await request('/api/snapshot', undefined, 'snapshot'); streamConnected = true; render();
+    await request('/api/snapshot', undefined, 'snapshot', result => {
+    snapshot = result; streamConnected = true; render();
     const stream = new EventSource('/api/stream'), ticket = receiver.ticket('snapshot'); activeStream = stream;
     stream.onopen = () => { if (receiver.isCurrent(ticket)) { streamConnected = true; render(); } };
     stream.onerror = () => {
@@ -286,6 +290,7 @@ async function boot() {
       const next = JSON.parse(event.data); if (!receiver.accept(next, ticket)) return;
       const nextSignature = JSON.stringify({ ...next, observedAt: null, access: { ...next.access, publicationSeq: null } }); snapshot = next;
       if (signature !== nextSignature) { signature = nextSignature; if (renderedScope !== scopeKey(next) || !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) render(); else refreshMonitorCard(); }
+    });
     });
   } catch (e) {
     if (!receiver.isCurrent(handshake)) return;
