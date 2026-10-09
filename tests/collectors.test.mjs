@@ -1,3 +1,4 @@
+import { logOptions, evidenceOptions } from './access-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, appendFile, rm } from 'node:fs/promises';
@@ -29,7 +30,7 @@ test('log discovery, partial UTF-8 append, malformed lines and truncation recove
   const file = path.join(dir, 'sessions/2026/10/09/rollout-abcdef12-abcd-4abc-8abc-abcdef123456.jsonl');
   await writeFile(file, line('session_meta', { id: 'abcdef12-abcd-4abc-8abc-abcdef123456', cwd: dir }) + line('event_msg', { type: 'task_started', turn_id: 'turn' }));
   const sessions = await discoverSessions(dir); assert.equal(sessions[0].id, 'abcdef12-abcd-4abc-8abc-abcdef123456');
-  const source = new LogSource(file, 'abcdef12-abcd-4abc-8abc-abcdef123456', undefined, { canRead: () => true }); await source.poll();
+  const source = new LogSource(file, 'abcdef12-abcd-4abc-8abc-abcdef123456', undefined, await logOptions(file, 'abcdef12-abcd-4abc-8abc-abcdef123456')); await source.poll();
   const content = Buffer.from(line('event_msg', { type: 'user_message', message: '中文任务' }));
   await appendFile(file, content.subarray(0, content.length - 3)); await source.poll();
   assert.equal(source.state.title, '');
@@ -47,11 +48,11 @@ test('test evidence becomes stale when source bytes change and Git diffs are rea
   execFileSync('git', ['init', '-q', dir]);
   execFileSync('git', ['-C', dir, 'add', 'app.txt']);
   execFileSync('git', ['-C', dir, '-c', 'user.name=APS Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture']);
-  const fp = await sourceFingerprint(dir);
+  const fp = await sourceFingerprint(dir, await evidenceOptions(dir));
   await writeFile(path.join(dir, '.agent-progress/results.json'), JSON.stringify({ version: 1, generatedAt: '2026-10-09T00:00:00Z', sourceFingerprint: fp.hash, tests: [{ id: 'suite', status: 'passed' }] }));
-  const before = await collectEvidence(dir); assert.equal(before.report.current, true); assert.equal(before.git.commits.length, 1);
+  const before = await collectEvidence(dir, await evidenceOptions(dir)); assert.equal(before.report.current, true); assert.equal(before.git.commits.length, 1);
   await writeFile(path.join(dir, 'app.txt'), 'two');
-  const after = await collectEvidence(dir); assert.equal(after.report.current, false); assert.match(after.git.diff, /\+two/);
+  const after = await collectEvidence(dir, await evidenceOptions(dir)); assert.equal(after.report.current, false); assert.match(after.git.diff, /\+two/);
 });
 test('evidence confinement rejects traversal and sensitive files', async t => {
   const dir = await temp(t); await writeFile(path.join(dir, '.env'), 'SECRET=1');
@@ -61,14 +62,14 @@ test('evidence confinement rejects traversal and sensitive files', async t => {
 test('declared evidence in a normally excluded directory still invalidates the fingerprint', async t => {
   const dir = await temp(t); await mkdir(path.join(dir, '.agent-progress')); await mkdir(path.join(dir, 'test-results'));
   await writeFile(path.join(dir, '.agent-progress/acceptance.json'), JSON.stringify({ version: 1, taskId: 'a', criteria: [{ id: 'a', title: 'Review log', files: ['test-results/build.log'], requiresHuman: true }] }));
-  await writeFile(path.join(dir, 'test-results/build.log'), 'first'); const before = await sourceFingerprint(dir);
-  await writeFile(path.join(dir, 'test-results/build.log'), 'changed'); const after = await sourceFingerprint(dir);
+  await writeFile(path.join(dir, 'test-results/build.log'), 'first'); const before = await sourceFingerprint(dir, await evidenceOptions(dir));
+  await writeFile(path.join(dir, 'test-results/build.log'), 'changed'); const after = await sourceFingerprint(dir, await evidenceOptions(dir));
   assert.notEqual(before.hash, after.hash);
 });
 test('large skipped log ranges clear stale completion and usage', async t => {
-  const dir = await temp(t), file = path.join(dir, 'abcdef12-abcd-4abc-8abc-abcdef123456.jsonl');
+  const dir = await temp(t); await mkdir(path.join(dir, 'sessions')); const file = path.join(dir, 'sessions/abcdef12-abcd-4abc-8abc-abcdef123456.jsonl');
   await writeFile(file, line('session_meta', { id: 'abcdef12-abcd-4abc-8abc-abcdef123456', cwd: dir }) + line('event_msg', { type: 'task_complete', turn_id: 'old' }));
-  const source = new LogSource(file, 'abcdef12-abcd-4abc-8abc-abcdef123456', 512, { canRead: () => true }); await source.poll(); assert.equal(source.state.phase, 'completed');
+  const source = new LogSource(file, 'abcdef12-abcd-4abc-8abc-abcdef123456', 512, await logOptions(file, 'abcdef12-abcd-4abc-8abc-abcdef123456')); await source.poll(); assert.equal(source.state.phase, 'completed');
   await appendFile(file, line('ignored', { data: 'x'.repeat(2000) }) + line('event_msg', { type: 'agent_message', message: 'Tail only' }));
   await source.poll(); assert.equal(source.state.phase, 'unknown'); assert.equal(source.diagnostics.truncated, true);
 });
@@ -78,7 +79,7 @@ test('Git diff and indexed paths omit sensitive files at every depth', async t =
   execFileSync('git', ['init', '-q', dir]); execFileSync('git', ['-C', dir, 'add', '.']);
   execFileSync('git', ['-C', dir, '-c', 'user.name=APS Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture']);
   await writeFile(path.join(dir, 'auth.json'), 'sensitive-auth-value'); await writeFile(path.join(dir, 'nested/.env'), 'sensitive-env-value'); await writeFile(path.join(dir, 'visible.txt'), 'visible-change');
-  const result = await collectEvidence(dir);
+  const result = await collectEvidence(dir, await evidenceOptions(dir));
   assert.doesNotMatch(result.git.diff, /sensitive-/); assert.match(result.git.diff, /visible-change/);
   assert.deepEqual(result.git.files.map(f => f.path), ['visible.txt']);
 });

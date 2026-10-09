@@ -40,14 +40,14 @@ Normalized events have `id`, `kind`, optional `at`, `source`, and kind-specific 
 ## Collection and scope
 
 - Local logs: filename/stat-only discovery with canonical UUIDs and separate explicit Codex content grants; bounded discovery under one Codex data root; complete newline records only; UTF-8 chunk boundaries preserved; malformed records skipped with diagnostics. Poll and rediscover every two seconds while selected. Snapshots include the current session list; new arrivals never steal an explicit selection.
-- App-server: literal loopback endpoint, initialize handshake, authorized thread/read only. Global thread/list and unsolicited notifications are disabled; replies require a leading correlated numeric ID before payload parsing. Current-turn history only. No auto-resume or approval response.
+- App-server: literal loopback, ID-only thread/loaded/list discovery, explicitly scoped thread/read history and bounded read-only history pagination where supported. Structural envelope routing is field-order independent. Only notifications on a captured authorized channel for the selected ID/turn are parsed. Cross-client passive subscription remains unsupported by the verified observer interfaces. No auto-resume or approval response.
 - Local Hooks: bounded nonrecursive metadata spool, independent from Codex logs. Discover session IDs without stealing selection. Product origin is unknown until explicitly labeled; Hook mode never inherits a workspace or acceptance evidence. [Detailed contract and limits](WORK-HOOKS.md).
 - Git: selected workspace must be the repository root. No optional index locks, textconv or external diff helpers. Only sanitized indexed paths enter the diff; sensitive paths are omitted before the command is constructed. Untracked files can be inspected as bounded text, but are not represented as tracked Git diffs.
 - Evidence files: realpath confinement, traversal/sensitive-path rejection, 2 MiB limit. No arbitrary file-read API; detail IDs must already exist in the evidence index.
 
 ## State and persistence
 
-Human decisions are written atomically into `.aps-data/reviews.json`, keyed by source type, session, workspace and task ID. Accept/reject/clear actions require same-origin access and a per-process token. The service refreshes evidence before committing a review and rejects stale dialog fingerprints. Export is a local download, not an upload.
+Human decisions are written atomically into `.aps-data/reviews/<scope-and-generation-hash>.json`, keyed by backend, session, workspace and permission dependencies. Legacy mixed `reviews.json` is not opened automatically. Accept/reject/clear actions require same-origin access and a per-process token. The service refreshes evidence before committing a review and rejects stale dialog fingerprints. Export is a local download, not an upload.
 
 Only UI language/theme are saved in localStorage; selected navigation uses sessionStorage. Hook product labels and separate log/RPC body grants persist in `.aps-data/session-access.json`; legacy `hook-origins.json` labels migrate with no body grant; they are user assertions, not host-provided identity. No Codex credentials, settings or original logs are written by the dashboard. The current source choice is intentionally not persisted across server restarts; CLI flags choose the initial adapter.
 
@@ -74,3 +74,7 @@ Runtime dependencies: none. Optional Playwright development dependency supplies 
 The browser also expires cached nonterminal observations with its own clock, so a stalled SSE feed cannot leave an old running label indefinitely. An SSE error replaces the main activity label with disconnected/current-activity-unknown. Demo review phases and timestamp-free app-server terminal history remain explicit; history without a completion timestamp does not acquire one.
 
 All log and RPC content gates, UUID normalization, cached-state clearing and evidence-path protection are defined in [PRIVACY-SCOPE](PRIVACY-SCOPE.md). Discovery never reads even the first line. Unknown product identity defaults to denied; custom filenames are unsupported. The header check only validates an already-authorized ID before the body reader can run. Source labels alone do not grant access. Four/six-field Hook records and their field sources are documented in [WORK-HOOKS](WORK-HOOKS.md); the recorder is unchanged by RC3.
+
+## RC4 authority path
+
+SessionAccess is the sole capability decision maker. ResourceRegistry protects active/archived stores across default, environment and configured homes, Hook spools and private APS data. DataGateway owns business body reads, reviews and controlled Git execution. ScopedState retains evidence provenance; Publication validates dependencies before serialization and final write. The browser StateReceiver validates every output category and handshake generation. See [RC4 implementation and limitations](RC4-REMEDIATION.md).

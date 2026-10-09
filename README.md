@@ -2,7 +2,7 @@
 
 **See the work. Inspect the evidence. Decide what is done.**
 
-[简体中文](README.zh-CN.md) · Version 0.1.1-rc.3 · MIT · Local Codex + Work Hook experiment
+[简体中文](README.zh-CN.md) · Version <!-- APS_VERSION -->0.1.1-rc.4<!-- /APS_VERSION --> · MIT · Local Codex + Work Hook experiment
 
 An original, local browser dashboard for coding-agent observability. It separates an agent's activity and self-reported plan from verifiable acceptance conditions. No production dependencies, accounts, API keys, telemetry or cloud service.
 
@@ -18,7 +18,10 @@ Three measures remain separate: **overall task progress** is unknown without a r
 
 Work monitoring is partial: task text, structured plans, tokens, exact context, workspace and task acceptance are not collected by this opt-in probe. Five event types were observed in the user's Windows Work locally tests; the first attempt at the later tool test had a host error, and retry produced PreToolUse, PostToolUse and Stop. See the measured boundary, not test totals, in [WORK-HOOKS](docs/WORK-HOOKS.md).
 
-Codex discovery lists UUIDs without reading log contents. Choose a known Codex session, then **Confirm Codex and allow content access**. This permits local prompt/message/tool and project-evidence reading for that ID. Unknown and Work sessions remain denied; a Hook product label alone grants no access. Revocation clears current content and evidence; permissions persist locally. [Exact scope and compatibility limits](docs/PRIVACY-SCOPE.md).
+Codex discovery lists UUIDs without reading log contents. Choose a known Codex session, then **Confirm Codex and allow content access**. This permits prompt/message/tool reading for that backend and ID. Workspace files, tests and Git require a separate explicit workspace grant. Unknown and Work sessions remain denied; a Hook product label alone grants no access. Revocation clears current content and evidence; permissions persist locally. [Exact scope and compatibility limits](docs/PRIVACY-SCOPE.md).
+
+
+RC4 migrates v1 labels without retaining body grants. Confirm the backend and full ID again. Revocation invalidates old generations, cached reports and subscriptions; detail/export responses pass the same browser gate. Clean restarts preserve scoped v2 permissions; unclean shutdowns require reconfirmation. Legacy mixed review files remain on disk but are not read automatically. See [RC4 changes and limits](docs/RC4-REMEDIATION.md).
 
 ## Start on Windows
 
@@ -46,7 +49,7 @@ Installation, custom data folders and removal: [Windows guide](docs/INSTALL.md).
 
 - Discover recent local UUID session candidates (product unknown until confirmed); prefer `CODEX_THREAD_ID` when supplied by the launching environment. Otherwise select a recent session explicitly.
 - Follow task phase, tools, recent events, reported plans and reported usage. Logs are polled every two seconds and snapshots arrive over SSE.
-- Optional loopback app-server WebSocket connection, with history polling for locally preauthorized Codex IDs only; no global thread listing. No start/resume/approval methods.
+- Optional loopback app-server WebSocket connection, with ID-only discovery of loaded threads and separately authorized history polling; no preview-bearing global thread listing. No start/resume/approval methods.
 - Six distinct acceptance states: implemented, auto-verified, awaiting human review, failed, unknown, human-accepted.
 - Inspect Git working changes, commits, implementation files and named test results in dialogs.
 - Record human accept/reject decisions locally. Decisions expire when the evidence or acceptance definition changes.

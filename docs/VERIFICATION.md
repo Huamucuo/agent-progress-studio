@@ -58,10 +58,14 @@ The accompanying archive manifest records actual final test totals, full commit 
 
 A separate real Codex CLI probe was started in a scratch directory with a read-only sandbox and a fixed-response/no-tools prompt. Its new session was discovered automatically at 2026-10-08 22:26:03 UTC. The in-app browser subsequently selected its exact ID and displayed its real task and stale execution evidence. The initial automated selection assertion sampled before the asynchronous selection response; later direct browser inspection confirmed the selection. The CLI itself produced no final reply within the 90-second test bound and was stopped, so a **real completed Codex turn is not validated in this run**. The raw CLI error was not retained; no precise timeout cause is claimed. Isolated browser and service regression tests do verify selected-log appends and completed-turn rendering, but are not a substitute for that missing live completion result.
 
-## 0.1.1-rc.3 P-01 / D-01 verification boundary
+## Historical: 0.1.1-rc.3 P-01 / D-01 verification boundary (superseded by RC4)
 
 RC2 is preserved as 8495bac1bcabf619afaafb1b4e126b5a429ccf25. This repair verifies denied **I/O calls**, not merely hidden UI text. The initial synthetic RC2 reproduction failed for upper/mixed-case Work UUIDs and alternate reader paths; the release handoff includes red/green evidence. Current regression tests cover source grants, UUID aliases, header mismatches, revocation, restart, alternate evidence readers, scoped RPC, focused-dialog invalidation and delayed evidence replies. Four/six-field examples are checked against the unchanged Hook implementation.
 
 Full Node and Edge verification is run against the exact committed release staging tree. Final counts and commands are in the generated report and release inventory. Previously captured real Work callbacks are rendered by RC3; fresh callbacks from the existing development session are reported separately, with product identity unconfirmed. These checks are not a newly created Work test, new prompt-to-screen latency measurement, or long-duration reliability certification.
 
 Pending manual acceptance: a new Work locally greeting and tool turn; authorized real Codex session selection, append and completed-turn display; and the real app-server's compatibility with the stricter reply envelope. RPC global listing and unsolicited notifications are disabled to prevent unscoped content ingestion, so notification-only plan/token updates are unavailable through that adapter. No runtime/client restart, trust change or public publishing is performed by the repair.
+
+## RC4 validation
+
+See [RC4 implementation](RC4-REMEDIATION.md) for the permission matrix, tests and explicit host limits. The RC3 paragraph above describes that historical candidate, not current RPC behavior. RC4 evidence includes real Windows Edge UI with synthetic events; it is not proof of a fresh real Work or Codex host turn. The external RC4_WORK_B_HANDOFF.md identifies the fixed commit and exact candidate ZIP.

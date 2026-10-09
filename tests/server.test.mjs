@@ -1,3 +1,4 @@
+import { scope } from './access-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, mkdir, writeFile, appendFile } from 'node:fs/promises';
@@ -10,7 +11,7 @@ async function app(t, dataDir) {
   const server = await createApplication({ port: 0, mode: 'demo', dataDir: dir, interval: 0 });
   t.after(async () => { await server.close(); if (!dataDir) await rm(dir, { recursive: true, force: true }); });
   const base = server.url, boot = await (await fetch(base + '/api/bootstrap')).json();
-  const post = (url, body, token = boot.token) => fetch(base + url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-aps-token': token }, body: JSON.stringify(body) });
+  const post = (url, body, token = boot.token) => fetch(base + url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-aps-token': token }, body: JSON.stringify({ ...body, ...scope(server) }) });
   return { base, post, server, dir };
 }
 test('snapshot exposes deterministic demo, separate acceptance and replay controls', async t => {
@@ -39,7 +40,7 @@ test('human acceptance is durable and exports retain source labels', async t => 
   assert.equal(updated.acceptance.percent, 50);
   assert.equal(updated.acceptance.criteria[2].status, 'accepted');
   assert.equal(updated.source.mode, 'demo');
-  const b = await app(t, a.dir);
+  await a.server.close(); const b = await app(t, a.dir);
   assert.equal((await (await fetch(b.base + '/api/snapshot')).json()).acceptance.criteria[2].status, 'accepted');
 });
 test('source change to no-plan clears acceptance and metrics', async t => {

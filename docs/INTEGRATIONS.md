@@ -4,7 +4,7 @@ Checked 2026-10-09. Public documentation describes capabilities; actual availabi
 
 ## Codex app-server
 
-The documented protocol uses ID-correlated requests/responses and notifications, with an initialization handshake. Read-only `thread/list` and `thread/read` allow session discovery/history; the latter does not resume a session or subscribe to its stream. Plan and token notifications are useful only when delivered to that connection. WebSocket support is experimental. Our own local endpoint successfully returned the current thread, but its stored status differed from the actively tailed log; this is why the UI labels source and limitations.
+The documented protocol uses ID-correlated requests/responses and notifications, with an initialization handshake. The protocol includes `thread/list`, but APS never uses its unscoped previews. APS uses ID-only `thread/loaded/list` and explicitly authorized `thread/read` for limited discovery/history; the latter does not resume a session or subscribe to its stream. Plan and token notifications are useful only when delivered to that connection. WebSocket support is experimental. Our own local endpoint successfully returned the current thread, but its stored status differed from the actively tailed log; this is why the UI labels source and limitations.
 
 RC3 为隔离未授权正文，停用全局 `thread/list`（其预览可能包含 Work 内容），仅轮询本地已明确授权的 Codex ID。未关联到已授权请求或非前置数值 ID 的响应不解析；不接收未请求通知。该收紧后的真实宿主兼容性待人工验收；另起服务仍不等于获得桌面端实时流。见 [读取边界](PRIVACY-SCOPE.md)。
 
@@ -44,3 +44,7 @@ Sources: [Hooks](https://learn.chatgpt.com/docs/hooks), [Package your plugin](ht
 | ChatGPT Work locally | Opt-in local lifecycle Hook metadata | Four base fields; Pre/PostToolUse add authorized tool_name/tool_status (six fields); legacy four-field tool events accepted; no product attestation or task text | Real Hook experiment on the development branch |
 | Work Cloud with local tool access | Different cloud orchestration boundary | Local command/plugin hooks are not supported by the documented cloud path | Not integrated |
 | Codex native interface | Public app-server and optional approved Hooks supply data | This dashboard cannot rewrite native panels | Read-only adapters only |
+
+## RC4 capability boundary
+
+`thread/loaded/list` discovers only IDs loaded at that endpoint, with bounded cursor pagination. `thread/read` provides authorized stored history. If history marks items as summary/notLoaded, APS attempts official `thread/turns/list` and `thread/items/list`; unsupported methods preserve legacy history and emit an explicit diagnostic. `ThreadItemEntry.item` and its `turnId` are checked. Plans and usage are normalized only from actual permitted notifications or separately granted JSONL; plan text is not a structured completion schedule. [RPC and permission details](RC4-REMEDIATION.md).

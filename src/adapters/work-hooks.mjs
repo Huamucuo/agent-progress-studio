@@ -1,6 +1,7 @@
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createState, reduceEvent } from '../core/engine.mjs';
+import { sessionKey } from '../core/session-access.mjs';
 
 const phases = { SessionStart: 'session_observed', UserPromptSubmit: 'prompt_observed', PreToolUse: 'tool_start_observed', PostToolUse: 'tool_observed', Stop: 'stop_observed' };
 const filenamePattern = /^\d{13}-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.json$/;
@@ -23,12 +24,16 @@ function validRecord(value) {
 
 /** Reads only the opt-in probe's metadata allowlist. Product origin is never inferred. */
 export class WorkHookSource {
-  constructor(directory, id = '') {
+  constructor(directory, id = '', { access, ref } = {}) {
+    this.access = access; this.ref = ref;
     this.directory = directory; this.id = id; this.state = createState(id); this.sessions = [];
     this.records = new Map(); this.received = false; this.error = null; this.diagnostics = {};
     this.startedAt = Date.now(); this.initial = true;
   }
   async poll() {
+    if (this.access && !this.access.can(this.ref, 'observe')) { this.close(); this.error = 'Hook observation revoked'; return this.state; }
+    this.permit = this.access?.issue(this.ref, 'observe');
+    const valid = () => { if (this.permit) this.access.check(this.permit); };
     let entries = [];
     this.error = null;
     try {
@@ -49,10 +54,11 @@ export class WorkHookSource {
         if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024) throw new Error('Invalid record size or type');
         const signature = `${stat.size}:${stat.mtimeMs}`;
         if (this.records.get(entry.name)?.signature === signature) continue;
-        const raw = await readFile(file);
+        valid(); const raw = await readFile(file); valid();
         if (raw.length > 1024) throw new Error('Record grew');
         const record = JSON.parse(raw.toString('utf8'));
         if (!validRecord(record)) throw new Error('Unexpected fields');
+        record.session_id = sessionKey(record.session_id);
         const receivedAt = new Date().toISOString(), timestamp = Date.parse(record.timestamp);
         const live = !this.initial && timestamp >= this.startedAt && timestamp <= Date.parse(receivedAt);
         this.records.set(entry.name, { signature, record, receivedAt, ingestDelayMs: live ? Date.parse(receivedAt) - timestamp : null });
@@ -60,7 +66,7 @@ export class WorkHookSource {
         rejected++; this.records.delete(entry.name);
       }
     }
-    this.initial = false;
+    valid(); this.initial = false;
     const records = [...this.records.entries()].sort((a, b) => a[1].record.timestamp.localeCompare(b[1].record.timestamp) || a[0].localeCompare(b[0]));
     const groups = new Map();
     for (const [, { record }] of records) {
@@ -80,5 +86,5 @@ export class WorkHookSource {
       lastIngestDelayMs: selected.map(([, value]) => value.ingestDelayMs).filter(value => value !== null).at(-1) ?? null };
     return this.state;
   }
-  close() {}
+  close() { this.records.clear(); this.sessions = []; this.state = createState(this.id); this.received = false; this.permit = null; this.initial = true; }
 }

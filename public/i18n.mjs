@@ -1,6 +1,6 @@
 const en = {
   contentDenied:'Session content access is off', contentDeniedDetail:'Discovery reads names and file metadata only. A product label alone grants no content access. Work content remains excluded.', allowContent:'Confirm Codex and allow content access',
-  allowContentDetail:'Confirm that this specific ID belongs to your Codex session. This permits local reading of its prompts, messages, tool records and associated project evidence, and including them in local exports. Do not authorize a Work or unidentified session.', allowContentConfirm:'This is my Codex session; allow reading',
+  allowContentDetail:'Confirm this backend and full ID belong to your Codex session. Allow local prompt/message/tool reading and local export for this scope. Workspace evidence requires separate permission. Do not authorize Work or an unidentified session.', allowContentConfirm:'This is my Codex session; allow reading',
   contentGranted:'Codex session content authorized', contentGrantedDetail:'Permission is saved locally for this ID. Revoke to clear monitored content and evidence. Files already exported are not deleted.', revokeContent:'Revoke content access',
   overview:'Run overview', acceptance:'Acceptance', evidence:'Evidence', events:'Event stream', connection:'Connections',
   workspace:'WORKSPACE', observatory:'LOCAL AGENT OBSERVATORY', localOnly:'Your work stays here.', localDetail:'Local processing · no telemetry', export:'Export report', changeSource:'Change source',
@@ -42,7 +42,7 @@ const en = {
 };
 const zh = {
   contentDenied:'会话正文读取已关闭', contentDeniedDetail:'发现会话仅检查文件名和文件信息。来源标签不等于正文授权；Work 正文保持排除。', allowContent:'确认是 Codex 并授权读取正文',
-  allowContentDetail:'请确认这个 ID 是你的 Codex 会话。授权后将本地读取该会话的提示词、消息、工具记录及关联项目证据，并可纳入本地导出。请勿授权 Work 或无法确认来源的会话。', allowContentConfirm:'这是我的 Codex 会话，允许读取',
+  allowContentDetail:'请核对后端和完整 ID，确认是你的 Codex 会话。允许本地读取该范围的提示词、消息、工具记录并纳入本地导出；工程证据需要单独授权。请勿授权 Work 或无法确认来源的会话。', allowContentConfirm:'这是我的 Codex 会话，允许读取',
   contentGranted:'已授权读取此 Codex 会话正文', contentGrantedDetail:'授权按会话 ID 保存在本机。撤销后清空当前正文和证据；不会删除已经导出的文件。', revokeContent:'撤销正文读取授权',
 
   overview:'任务总览', acceptance:'验收清单', evidence:'证据中心', events:'事件流', connection:'连接管理',

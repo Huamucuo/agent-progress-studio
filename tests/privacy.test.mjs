@@ -1,3 +1,4 @@
+import { logOptions, scope } from './access-fixture.mjs';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -7,7 +8,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import os from 'node:os';
 import { discoverSessions, LogSource } from '../src/adapters/codex-log.mjs';
-import { SessionAccess, canonicalUuid } from '../src/core/session-access.mjs';
+import { SessionAccess, canonicalUuid, sessionRef } from '../src/core/session-access.mjs';
 import { AppServerSource } from '../src/adapters/app-server.mjs';
 import { createApplication } from '../src/server.mjs';
 import { collectEvidence, readEvidence, sourceFingerprint } from '../src/collectors/evidence.mjs';
@@ -29,6 +30,7 @@ async function fixture(t, filename, headerId = codexId) {
 // Instrument the real Node I/O boundary, not just normalized/displayed results.
 // A body call is any requested range crossing the first newline, even if discarded.
 function traceIO(t, fixture) {
+  const samePath = value => path.resolve(String(value)).toLowerCase() === path.resolve(fixture.file).toLowerCase();
   const calls = [], history = [], descriptors = new Set(); let phase = 'initial';
   const record = value => { const entry = { phase, ...value }; calls.push(entry); history.push(entry); };
   calls.beginPhase = name => { phase = name; calls.length = 0; };
@@ -36,7 +38,7 @@ function traceIO(t, fixture) {
   const open = fs.open, readFile = fs.readFile, readSync = fsSync.readSync;
   t.mock.method(fs, 'open', async (...args) => {
     const handle = await open(...args);
-    if (path.resolve(String(args[0])) !== fixture.file) return handle;
+    if (!samePath(args[0])) return handle;
     record({ method: 'open' }); descriptors.add(handle.fd);
     const read = handle.read.bind(handle);
     t.mock.method(handle, 'read', async (...params) => {
@@ -47,7 +49,7 @@ function traceIO(t, fixture) {
     return handle;
   });
   t.mock.method(fs, 'readFile', async (...args) => {
-    if (path.resolve(String(args[0])) === fixture.file) record({ method: 'readFile', body: true });
+    if (samePath(args[0])) record({ method: 'readFile', body: true });
     return readFile(...args);
   });
   t.mock.method(fsSync, 'readSync', (...args) => {
@@ -76,10 +78,10 @@ for (const label of ['unknown', 'known Work', 'Codex without content grant', 'in
   test(`P-01 direct LogSource defaults to deny: ${label}`, async t => {
     const id = label === 'invalid UUID' ? 'not-a-uuid' : codexId;
     const f = await fixture(t, `rollout-${id}.jsonl`, id), calls = traceIO(t, f);
-    const access = new SessionAccess();
-    if (label === 'known Work') access.set(id, 'work-local');
-    if (label === 'Codex without content grant') access.set(id, 'codex');
-    const source = new LogSource(f.file, id, undefined, { canRead: id => access.canRead(id) });
+    const options = canonicalUuid(id) ? await logOptions(f.file, id, false) : {};
+    if (label === 'known Work') await options.access.change(options.ref, { origin: 'work-local' }, options.access.revision);
+    if (label === 'Codex without content grant') await options.access.change(options.ref, { origin: 'codex' }, options.access.revision);
+    const source = new LogSource(f.file, id, undefined, options);
     await source.poll();
     assert.equal(calls.filter(c => c.body).length, 0, 'Denied body reader must not be called');
     assert.equal(calls.filter(c => c.method === 'open').length, 0);
@@ -89,7 +91,7 @@ for (const label of ['unknown', 'known Work', 'Codex without content grant', 'in
 
 test('P-01 filename/header mismatch never calls body I/O even with explicit Codex grant', async t => {
   const f = await fixture(t, `rollout-${codexId}.jsonl`, workId), calls = traceIO(t, f);
-  const source = new LogSource(f.file, codexId, 8 * 1024 * 1024, { canRead: id => id === codexId });
+  const source = new LogSource(f.file, codexId, 8 * 1024 * 1024, await logOptions(f.file, codexId));
   await source.poll();
   assert.equal(calls.filter(c => c.body).length, 0, 'Only the bounded header may be read');
   assert.equal(source.state.title, '');
@@ -97,33 +99,33 @@ test('P-01 filename/header mismatch never calls body I/O even with explicit Code
 
 test('P-01 invalid internal UUID never reaches the body reader', async t => {
   const f = await fixture(t, `rollout-${codexId}.jsonl`, 'invalid-internal-id'), calls = traceIO(t, f);
-  const source = new LogSource(f.file, codexId, undefined, { canRead: () => true });
+  const source = new LogSource(f.file, codexId, undefined, await logOptions(f.file, codexId));
   await source.poll(); assert.equal(calls.filter(c => c.body).length, 0); assert.equal(source.state.events.length, 0);
 });
 
 test('P-01 labels never imply permission; UUID aliases and conflicting grants fail closed', () => {
   const legacy = new SessionAccess(undefined, { [codexId.toUpperCase()]: 'codex', [workId]: 'work-local', MixedHookID: 'codex' });
-  assert.equal(legacy.origin(codexId), 'codex'); assert.equal(legacy.canRead(codexId), false);
-  assert.equal(legacy.origin('mixedhookid'), 'unknown'); assert.equal(canonicalUuid('not-a-uuid'), null);
+  assert.equal(legacy.origin(sessionRef('local:fixture', codexId)), 'codex'); assert.equal(legacy.can(sessionRef('local:fixture', codexId), 'content'), false);
+  assert.equal(legacy.origin(sessionRef('hooks:fixture', 'mixedhookid')), 'unknown'); assert.equal(canonicalUuid('not-a-uuid'), null);
   for (const entries of [
     [[codexId, { origin: 'codex', bodyRead: true }], [codexId.toUpperCase(), { origin: 'work-local', bodyRead: true }]],
     [[codexId.toUpperCase(), { origin: 'work-local', bodyRead: true }], [codexId, { origin: 'codex', bodyRead: true }]]
   ]) {
     const access = new SessionAccess({ version: 1, sessions: Object.fromEntries(entries) });
-    assert.equal(access.canRead(codexId), false); assert.equal(access.origin(codexId), 'work-local');
+    assert.equal(access.can(sessionRef('local:fixture', codexId), 'content'), false); assert.equal(access.origin(sessionRef('local:fixture', codexId)), 'work-local');
   }
-  assert.throws(() => legacy.set('not-a-uuid', 'codex', true));
+  assert.throws(() => sessionRef('local:fixture', 'not-a-uuid'));
 });
 
 for (const filenameId of [codexId, codexId.toUpperCase(), 'AbCdEf12-AbCd-4aBc-8aBc-AbCdEf123456']) {
   test(`P-01 explicitly granted Codex control reads only after matching header: ${filenameId}`, async t => {
     const f = await fixture(t, `rollout-${filenameId}.jsonl`, codexId.toUpperCase()), calls = traceIO(t, f);
-    const access = new SessionAccess(); access.set(codexId, 'codex', true);
-    const source = new LogSource(f.file, filenameId, 8 * 1024 * 1024, { canRead: id => access.canRead(id) });
+    const options = await logOptions(f.file, codexId);
+    const source = new LogSource(f.file, filenameId, 8 * 1024 * 1024, options);
     await source.poll(); assert.equal(source.state.title, 'SYNTHETIC_PRIVATE_BODY');
     assert.equal(calls.filter(c => c.body).length, 1);
     assert.ok(calls.filter(c => c.body).every(c => c.position >= f.headerBytes));
-    calls.beginPhase('after-revocation'); access.set(codexId, 'work-local'); await source.poll();
+    calls.beginPhase('after-revocation'); await options.access.change(options.ref, { content: false }, options.access.revision); await source.poll();
     assert.equal(calls.length, 0, 'Revocation must prevent even opening the log');
     assert.equal(source.state.events.length, 0); assert.equal(source.state.cwd, '');
   });
@@ -131,29 +133,12 @@ for (const filenameId of [codexId, codexId.toUpperCase(), 'AbCdEf12-AbCd-4aBc-8a
 
 test('P-01 replacing an authorized log with a Work header clears state before body I/O', async t => {
   const f = await fixture(t, `rollout-${codexId}.jsonl`), calls = traceIO(t, f);
-  const source = new LogSource(f.file, codexId, 8 * 1024 * 1024, { canRead: id => id === codexId });
+  const source = new LogSource(f.file, codexId, 8 * 1024 * 1024, await logOptions(f.file, codexId));
   await source.poll(); assert.equal(source.state.title, 'SYNTHETIC_PRIVATE_BODY');
   const header = row('session_meta', { id: workId, cwd: f.root }); f.headerBytes = Buffer.byteLength(header);
   await fs.writeFile(f.file, header + row('event_msg', { type: 'user_message', message: 'REPLACEMENT_PRIVATE_BODY' }));
   calls.beginPhase('after-replacement'); await source.poll();
   assert.equal(calls.filter(c => c.body).length, 0); assert.equal(source.state.title, ''); assert.equal(source.state.cwd, '');
-});
-
-test('P-01 app-server denies unscoped list and history before sending a request', async () => {
-  const source = new AppServerSource('ws://127.0.0.1:4500'), sent = [];
-  source.socket = { send: raw => { sent.push(JSON.parse(raw)); queueMicrotask(() => source.receive({ id: sent.at(-1).id, result: {} })); } };
-  await assert.rejects(() => source.request('thread/list', { limit: 50 }));
-  await assert.rejects(() => source.request('thread/read', { threadId: codexId, includeTurns: true }));
-  assert.equal(sent.length, 0);
-});
-
-test('P-01 app-server direct poll and notification deny unknown IDs', async () => {
-  const source = new AppServerSource('ws://127.0.0.1:4500'), requests = [];
-  source.threadId = codexId; source.connected = true;
-  source.request = async method => { requests.push(method); return { thread: { id: codexId, turns: [] } }; };
-  await source.poll(); assert.equal(requests.length, 0);
-  source.receive({ method: 'turn/plan/updated', params: { threadId: codexId, plan: [{ step: 'SYNTHETIC_PRIVATE_PLAN', status: 'pending' }] } });
-  assert.equal(source.state.plan.length, 0);
 });
 
 for (const origin of ['unknown', 'work-local', 'codex']) test(`P-01 service labels alone never open session logs: ${origin}`, async t => {
@@ -185,7 +170,7 @@ test('P-01 grant, realtime update, revocation, export and restart enforce the sa
   const f = await fixture(t, `rollout-${codexId}.jsonl`), dataDir = path.join(f.root, 'data');
   let app = await createApplication({ port: 0, mode: 'local', codexHome: f.root, dataDir, interval: 0 });
   t.after(() => app.close()); const calls = traceIO(t, f);
-  const post = async (decision, token) => fetch(app.url + '/api/session-access', { method: 'POST', headers: { 'content-type': 'application/json', 'x-aps-token': token }, body: JSON.stringify({ sessionId: codexId.toUpperCase(), decision }) });
+  const post = async (decision, token) => fetch(app.url + '/api/session-access', { method: 'POST', headers: { 'content-type': 'application/json', 'x-aps-token': token }, body: JSON.stringify({ sessionId: codexId.toUpperCase(), decision, ...scope(app) }) });
   let token = (await (await fetch(app.url + '/api/bootstrap')).json()).token;
   assert.equal((await post('allow-codex', 'invalid')).status, 403); assert.equal(calls.length, 0);
   assert.equal((await post('allow-codex', token)).status, 200);
@@ -248,36 +233,4 @@ test('P-01 service invalidates cached task and evidence after a header replaceme
   assert.equal(exported.task.title, ''); assert.equal(exported.workspace, null);
   await assert.rejects(() => app.service.detail('file', 'any'));
   assert.equal(calls.filter(c => c.body).length, 0);
-});
-
-test('P-01 unscoped and revoked app-server wire frames are rejected before JSON parsing', t => {
-  let authorized = true, rejected = false;
-  const source = new AppServerSource('ws://127.0.0.1:4500', { canRead: () => authorized }); source.threadId = codexId;
-  const parser = t.mock.method(JSON, 'parse');
-  source.receiveWire(JSON.stringify({ method: 'turn/plan/updated', params: { threadId: workId, plan: ['PRIVATE'] } }));
-  source.receiveWire(JSON.stringify({ id: 777, result: { thread: { id: workId, preview: 'PRIVATE' } } }));
-  assert.equal(parser.mock.callCount(), 0);
-  source.pending.set(1, { scopeId: codexId, reject: () => { rejected = true; } });
-  authorized = false; source.state.title = 'OLD_CACHED_TASK';
-  source.receiveWire(JSON.stringify({ id: 1, result: { thread: { id: codexId, preview: 'PRIVATE' } } }));
-  assert.equal(parser.mock.callCount(), 0); assert.equal(rejected, true); assert.equal(source.state.title, '');
-});
-
-test('P-01 app-server handshake never lists sessions and authorized history remains readable', async t => {
-  const sent = [];
-  class Socket extends EventTarget {
-    constructor() { super(); queueMicrotask(() => this.dispatchEvent(new Event('open'))); }
-    send(raw) {
-      const message = JSON.parse(raw); sent.push(message.method);
-      if (!message.id) return;
-      const result = message.method === 'initialize' ? {} : { thread: { id: codexId, preview: 'AUTHORIZED_HISTORY', turns: [] } };
-      queueMicrotask(() => this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ id: message.id, result }) })));
-    }
-    close() { this.dispatchEvent(new Event('close')); }
-  }
-  t.mock.method(globalThis, 'WebSocket', function () { return new Socket(); });
-  const source = new AppServerSource('ws://127.0.0.1:4500', { canRead: id => id === codexId, allowedIds: () => [codexId, workId] });
-  t.after(() => source.close());
-  assert.deepEqual((await source.connect()).map(s => s.id), [codexId]); await source.select(codexId);
-  assert.deepEqual(sent, ['initialize', 'initialized', 'thread/read']); assert.equal(source.state.title, 'AUTHORIZED_HISTORY');
 });

@@ -1,6 +1,6 @@
 {
   "name": "agent-progress-studio",
-  "version": "0.1.1-rc.3",
+  "version": "0.1.1-rc.4",
   "description": "Local, evidence-based progress observability for coding agents.",
   "type": "module",
   "license": "MIT",
@@ -10,7 +10,10 @@
     "demo": "node src/server.mjs --demo",
     "test": "node --test tests/*.test.mjs",
     "verify": "node scripts/verify.mjs",
-    "test:browser": "node tests/browser.mjs"
+    "test:browser": "node tests/browser.mjs && node tests/browser-privacy.mjs",
+    "version:sync": "node scripts/version.mjs --write",
+    "version:check": "node scripts/version.mjs",
+    "release:candidate": "node scripts/release.mjs"
   },
   "devDependencies": { "playwright": "1.56.1" }
 }

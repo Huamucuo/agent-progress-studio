@@ -1,3 +1,4 @@
+import { scope } from './access-fixture.mjs';
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm, writeFile, appendFile } from 'node:fs/promises';
@@ -150,7 +151,7 @@ try {
     });
     await page.getByTestId('nav-evidence').click(); await page.getByTestId('open-diff').click(); await ready;
     const { token } = await (await page.request.get(app.url + '/api/bootstrap')).json();
-    await page.request.post(app.url + '/api/source', { headers: { 'X-APS-Token': token }, data: { mode: 'local' } });
+    await page.request.post(app.url + '/api/source', { headers: { 'X-APS-Token': token }, data: { mode: 'local', ...scope(app) } });
     await page.getByTestId('nav-overview').click();
     await page.waitForFunction(() => document.querySelector('#monitor-source')?.value === 'local');
     release(); await done; await page.waitForTimeout(250);
@@ -161,7 +162,7 @@ try {
     await page.getByTestId('nav-acceptance').click(); await page.getByTestId('criterion-review').click();
     await page.getByTestId('review-note').fill('Focused review must close when its source loses scope');
     const { token } = await (await page.request.get(app.url + '/api/bootstrap')).json();
-    const changed = await page.request.post(app.url + '/api/source', { headers: { 'X-APS-Token': token }, data: { mode: 'local' } });
+    const changed = await page.request.post(app.url + '/api/source', { headers: { 'X-APS-Token': token }, data: { mode: 'local', ...scope(app) } });
     assert.equal(changed.status(), 200);
     await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 3000 });
   });
@@ -177,7 +178,7 @@ try {
     await page.getByTestId('monitor-status').filter({ hasText: 'Current activity unknown' }).waitFor({ timeout: 40000 });
     assert.equal(await page.evaluate(() => document.activeElement?.id), 'monitor-session');
     await app.close();
-    await page.getByTestId('monitor-status').filter({ hasText: 'Live updates disconnected' }).waitFor();
+    await page.getByRole('heading', { name: 'Local service unavailable. Keep its terminal running.', exact: true }).waitFor();
   });
   assert.deepEqual(errors, []); assert.deepEqual(outbound, []);
   await writeFile('test-results/browser-results.json', JSON.stringify({ version: 1, generatedAt: new Date().toISOString(), tests: results, pageErrors: errors, externalRequests: outbound }, null, 2));

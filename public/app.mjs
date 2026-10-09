@@ -1,5 +1,9 @@
 import { h, icon, button, badge, card, empty, ring, showDialog } from './components.mjs';
 import { strings } from './i18n.mjs';
+import { StateReceiver } from './state-receiver.mjs';
+const receiver = new StateReceiver();
+let activeStream, retryTimer;
+const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('aps-authority') : null;
 
 let language = localStorage.getItem('aps-language') || 'zh-CN';
 if (!strings[language]) language = 'zh-CN';
@@ -9,7 +13,7 @@ if (!['overview', 'acceptance', 'evidence', 'events', 'connection'].includes(vie
 let snapshot, token, sessions = [], eventFilter = '', errorFilter = false, streamConnected = true, signature = '', connecting = false, endpointDraft = '', renderedScope = '', scopeEpoch = 0;
 const t = key => strings[language][key] || key;
 const isHooks = () => snapshot?.source.mode === 'work-hooks';
-const scopeKey = value => `${value.source.mode}:${value.task.id}:${!!value.source.contentAccess?.readable}`;
+const scopeKey = value => `${value.access.authorityInstanceId}:${value.access.policyRevision}:${value.access.selectionRevision}:${value.source.mode}:${value.task.id}:${!!value.source.contentAccess?.readable}`;
 const originLabel = origin => t(origin === 'work-local' ? 'workOrigin' : origin === 'codex' ? 'codexOrigin' : 'unknownOrigin');
 const numeric = value => value == null ? t('unknown') : new Intl.NumberFormat(language).format(value);
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(language, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(value)) : t('unknown');
@@ -17,16 +21,39 @@ const criterionTitle = c => language === 'en' && c.titleEn ? c.titleEn : c.title
 const status = s => badge(s === 'completed' ? (language === 'en' ? 'Completed' : '已完成') : t(s), s);
 const metrics = (label, value, note, className = '') => h('div', { className: `metric ${className}` }, h('span', { className: 'metric-label' }, label), h('strong', {}, value), h('span', { className: 'metric-note' }, note));
 function notify(text) { const el = document.getElementById('toast'); el.textContent = text; el.classList.add('visible'); setTimeout(() => el.classList.remove('visible'), 4500); }
-async function request(url, data) {
-  const response = await fetch(url, data ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-APS-Token': token }, body: JSON.stringify(data) } : undefined);
+function clearSensitive() {
+  snapshot = null; sessions = []; signature = ''; scopeEpoch++; renderedScope = ''; streamConnected = false;
+  document.getElementById('dialog-root').replaceChildren();
+  document.getElementById('app').replaceChildren(empty(t('reconnecting'), t('transportError')));
+}
+function mutationScope() { return { authorityInstanceId: receiver.instance, expectedPolicyRevision: receiver.revision, selectionRevision: receiver.selection }; }
+async function wireRequest(url, data) {
+  const response = await fetch(url, data ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-APS-Token': token }, body: JSON.stringify(data) } : { cache: 'no-store' });
   const result = await response.json(); if (!response.ok) throw new Error(result.error || response.statusText); return result;
 }
-async function updateFromRequest(url, data) {
-  const previous = snapshot, result = await request(url, data);
-  // A newer SSE snapshot wins over a delayed mutation response.
-  if (snapshot === previous) snapshot = result;
+async function request(url, data, kind = 'control') {
+  const ticket = receiver.ticket(kind), result = await wireRequest(url, data ? { ...data, ...mutationScope() } : undefined);
+  if (!receiver.accept(result, ticket)) throw new Error(language === 'en' ? 'Scope changed. Refresh and retry.' : '访问范围已变化，请刷新后重试。');
+  return result;
 }
-async function action(url, data) { try { await updateFromRequest(url, data); signature = ''; render(); } catch (e) { notify(e.message); } }
+async function updateFromRequest(url, data) {
+  const scope = mutationScope();
+  if (data?.decision?.startsWith('revoke')) {
+    receiver.invalidate(); activeStream?.close(); clearSensitive();
+    try { await wireRequest(url, { ...data, ...scope }); channel?.postMessage({ type: 'invalidate', instance: scope.authorityInstanceId }); }
+    finally { await boot(); }
+    return;
+  }
+  const result = await request(url, data); if (!snapshot || result.access.publicationSeq >= snapshot.access.publicationSeq) snapshot = result;
+}
+async function action(url, data) { try { await updateFromRequest(url, data); signature = ''; render(); } catch (e) { notify(e.message); await boot(); } }
+async function exportReport() {
+  try {
+    const result = await request('/api/export', undefined, 'export');
+    const href = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
+    const anchor = h('a', { href, download: 'agent-progress-report.json' }); anchor.click(); setTimeout(() => URL.revokeObjectURL(href), 0);
+  } catch (e) { notify(e.message); }
+}
 function navigate(next) { view = next; sessionStorage.setItem('aps-view', view); render(); }
 function elapsed() {
   if (!snapshot?.task.startedAt) return t('unknown');
@@ -45,15 +72,15 @@ function render() {
   document.documentElement.lang = language; document.documentElement.dataset.theme = theme;
   const root = document.getElementById('app');
   const sidebar = h('aside', { className: 'sidebar' },
-    h('a', { className: 'brand', href: '#', onClick: e => { e.preventDefault(); navigate('overview'); } }, h('img', { src: '/logo.svg', alt: '', width: 38, height: 38 }), h('span', {}, 'Progress', h('b', {}, 'Studio'), h('small', {}, 'AGENT / V0.1'))),
+    h('a', { className: 'brand', href: '#', onClick: e => { e.preventDefault(); navigate('overview'); } }, h('img', { src: '/logo.svg', alt: '', width: 38, height: 38 }), h('span', {}, 'Progress', h('b', {}, 'Studio'), h('small', {}, `AGENT / ${snapshot.version}`))),
     h('div', { className: 'workspace-label' }, t('workspace')),
     h('nav', { 'aria-label': t('workspace') }, ['overview', 'acceptance', 'evidence', 'events', 'connection'].map(key => button(t(key), () => navigate(key), { className: `nav-button ${view === key ? 'active' : ''}`, icon: key, testId: `nav-${key}`, 'aria-current': view === key ? 'page' : null },))),
-    h('div', { className: 'sidebar-bottom' }, h('div', { className: 'privacy-card' }, icon('lock'), h('strong', {}, t('localOnly')), h('p', {}, t('localDetail')), button(t('privacy') + ' ↗', privacy, { kind: 'link' })), h('div', { className: 'version' }, h('span', { className: 'status-dot' }), 'AGENT PROGRESS STUDIO', h('span', {}, '0.1'))));
+    h('div', { className: 'sidebar-bottom' }, h('div', { className: 'privacy-card' }, icon('lock'), h('strong', {}, t('localOnly')), h('p', {}, t('localDetail')), button(t('privacy') + ' ↗', privacy, { kind: 'link' })), h('div', { className: 'version' }, h('span', { className: 'status-dot' }), 'AGENT PROGRESS STUDIO', h('span', {}, snapshot.version))));
   const topbar = h('header', { className: 'topbar' }, h('div', { className: 'breadcrumb' }, h('span', {}, 'Studio'), h('span', {}, '/'), h('strong', {}, t(view))),
     h('div', { className: 'top-actions' }, badge(streamConnected ? t('connected') : t('reconnecting'), streamConnected ? 'auto_verified' : 'unknown'),
       button(language === 'zh-CN' ? 'EN' : '中文', () => { language = language === 'zh-CN' ? 'en' : 'zh-CN'; localStorage.setItem('aps-language', language); render(); }, { className: 'language-button', testId: 'language-toggle', 'aria-label': 'Switch language' }),
       button('', () => { theme = theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('aps-theme', theme); render(); }, { className: 'icon-button', icon: theme === 'dark' ? 'sun' : 'moon', testId: 'theme-toggle', 'aria-label': theme === 'dark' ? 'Light theme' : 'Dark theme' }),
-      h('a', { className: 'button export-button', href: '/api/export', download: 'agent-progress-report.json', title: t('exportHint'), 'data-testid': 'export' }, icon('download'), t('export'))));
+      button(t('export'), exportReport, { className: 'button export-button', icon: 'download', title: t('exportHint'), testId: 'export' })));
   const pages = { overview: overviewView, acceptance: acceptanceView, evidence: evidenceView, events: eventsView, connection: connectionView };
   root.replaceChildren(sidebar, h('div', { className: 'workspace' }, topbar, h('main', { id: 'main' }, pages[view]()), h('footer', { className: 'page-footer' }, h('span', {}, t('observatory')), h('span', {}, t('noEta') + ' · ' + t('readonly')))));
 }
@@ -66,17 +93,24 @@ function contentAccess() {
   if (!['local', 'app-server'].includes(snapshot.source.mode) || !snapshot.task.id) return null;
   const granted = snapshot.source.contentAccess?.granted, id = snapshot.task.id;
   const allow = () => {
-    const modal = showDialog(t('allowContent'), h('div', {}, h('code', {}, id), h('p', {}, t('allowContentDetail'))),
-      [button(t('allowContentConfirm'), () => { modal.close(); action('/api/session-access', { sessionId: id, decision: 'allow-codex' }); }, { kind: 'primary', testId: 'confirm-content-access' })], t('close'));
+    const modal = showDialog(t('allowContent'), h('div', {}, h('code', {}, snapshot.access.sessionRef.backend), h('code', {}, id), h('p', {}, t('allowContentDetail'))),
+      [button(t('allowContentConfirm'), () => { modal.close(); action('/api/session-access', { sessionRef: snapshot.access.sessionRef, sessionId: id, decision: 'allow-codex' }); }, { kind: 'primary', testId: 'confirm-content-access' })], t('close'));
   };
   return card(t(granted ? 'contentGranted' : 'contentDenied'), t(granted ? 'contentGrantedDetail' : 'contentDeniedDetail'),
-    button(t(granted ? 'revokeContent' : 'allowContent'), granted ? () => action('/api/session-access', { sessionId: id, decision: 'revoke' }) : allow,
-      { kind: 'quiet', testId: granted ? 'revoke-content-access' : 'allow-content-access', disabled: !granted && (snapshot.source.mode !== 'local' || snapshot.source.origin === 'work-local') }));
+    button(t(granted ? 'revokeContent' : 'allowContent'), granted ? () => action('/api/session-access', { sessionRef: snapshot.access.sessionRef, sessionId: id, decision: 'revoke' }) : allow,
+      { kind: 'quiet', testId: granted ? 'revoke-content-access' : 'allow-content-access', disabled: !granted && snapshot.source.origin === 'work-local' }));
 }
 function progressCard() {
   const a = snapshot.acceptance;
   return card(t('progress'), t('progressHint'), h('div', { className: 'progress-body' }, h('div', { className: 'ring-wrap' }, ring(a.percent), h('div', { className: 'ring-label' }, h('strong', { 'data-testid': 'coverage-value' }, a.percent == null ? '—' : a.percent + '%'), h('span', {}, t('acceptance')))),
     h('div', { className: 'progress-explanation' }, h('strong', {}, a.total ? `${a.met} / ${a.total}` : '—'), h('span', {}, a.total ? t('criteriaMet') : t('noCriteria')), h('p', {}, a.total ? `${t('weight')}: ${a.earnedWeight} / ${a.totalWeight}` : t(isHooks() ? 'hookUnknown' : 'noCriteriaDetail')), button(t('definition') + ' ↗', () => showDialog(t('definition'), h('p', {}, t('formula')), null, t('close')), { kind: 'link' }))), badge(t(snapshot.task.phase), snapshot.task.phase));
+}
+function evidenceAccess() {
+  if (!snapshot?.access.sessionRef || isHooks() || snapshot.source.mode === 'demo') return null;
+  const granted = snapshot.source.evidenceAccess?.granted;
+  const root = h('input', { value: snapshot.source.evidenceAccess?.candidateRoot || '', 'aria-label': language === 'en' ? 'Evidence workspace' : '证据工作区', testId: 'evidence-root' });
+  return card(language === 'en' ? 'Workspace evidence access' : '工程证据访问', language === 'en' ? 'Separate permission for files, tests and Git. Never authorizes session stores.' : '单独授权读取工程文件、测试和 Git；不会授权会话存储目录。', root,
+    button(language === 'en' ? (granted ? 'Revoke evidence access' : 'Allow this workspace') : (granted ? '撤销工程证据访问' : '授权此工作区'), () => action('/api/session-access', { sessionRef: snapshot.access.sessionRef, decision: granted ? 'revoke-evidence' : 'allow-evidence', root: root.value }), { testId: 'evidence-access' }));
 }
 function stateSummary() {
   return h('div', { className: 'state-summary' }, ['implemented', 'auto_verified', 'awaiting_human', 'failed', 'unknown', 'accepted'].map(s => button(h('span', {}, h('b', { className: `state-number ${s}` }, snapshot.acceptance.counts[s] || 0), h('span', {}, t(s))), () => navigate('acceptance'), { className: `state-tile ${s}` })));
@@ -161,7 +195,7 @@ function acceptanceView() {
 }
 async function detail(kind, id, title) {
   const epoch = scopeEpoch;
-  try { const result = await request(`/api/evidence?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id || '')}`); if (epoch !== scopeEpoch) return; showDialog(title, h('pre', { className: 'evidence-text' }, result.text || t('noDetail')), null, t('close')); } catch (e) { if (epoch === scopeEpoch) notify(`${t('fileError')}: ${e.message}`); }
+  try { const result = await request(`/api/evidence?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id || '')}`, undefined, 'detail'); if (epoch !== scopeEpoch) return; showDialog(title, h('pre', { className: 'evidence-text' }, result.text || t('noDetail')), null, t('close')); } catch (e) { if (epoch === scopeEpoch) notify(`${t('fileError')}: ${e.message}`); }
 }
 function criterionDialog(c) {
   const fingerprint = snapshot.evidence.fingerprint, manifestHash = snapshot.evidence.manifestHash;
@@ -185,7 +219,7 @@ function testsCard() {
   const report = snapshot.evidence.report;
   return card(t('tests'), t('testsHint'), report ? h('div', { className: 'test-content' }, badge(t(report.current ? 'current' : 'stale'), report.current ? 'auto_verified' : 'unknown'), h('div', { className: 'test-counts' }, ['passed', 'failed', 'skipped'].map(state => metrics(t(state), report.tests.filter(r => r.status === state).length, ''))), h('div', { className: 'test-list' }, report.tests.map(row => h('div', { className: 'check-row' }, h('code', {}, row.id), status(row.status)))), button(t('viewReport'), () => detail('report', '', t('tests')), { kind: 'quiet' })) : empty(t('noTests'), t('noTestsDetail')));
 }
-function evidenceView() { return [pageHeading(t('evidence'), t('acceptanceHint')), sourceBanner(), h('p', { className: 'workspace-path' }, t('workspacePath'), h('code', {}, snapshot.workspace || (snapshot.source.mode === 'demo' ? t('demo') : t('unknown')))), h('div', { className: 'content-grid' }, gitCard(), testsCard()), diagnostics()]; }
+function evidenceView() { return [evidenceAccess(), pageHeading(t('evidence'), t('acceptanceHint')), sourceBanner(), h('p', { className: 'workspace-path' }, t('workspacePath'), h('code', {}, snapshot.workspace || (snapshot.source.mode === 'demo' ? t('demo') : t('unknown')))), h('div', { className: 'content-grid' }, gitCard(), testsCard()), diagnostics()]; }
 function eventRows(compact) {
   const events = [...snapshot.task.events].reverse().filter(e => (!errorFilter || e.status === 'failed' || e.metadata?.tool_status === 'failed') && (!eventFilter || JSON.stringify(e).toLowerCase().includes(eventFilter.toLowerCase()))).slice(0, compact ? 4 : 160);
   return events.length ? h('div', { className: 'event-list' }, events.map(e => button(h('span', { className: 'event-layout' }, h('span', { className: `event-mark ${e.status || e.kind}` }), h('span', { className: 'event-main' }, h('strong', {}, e.name || ({ usage: t('usage'), plan: t('plan'), task: t('currentTask'), turn: t('stage'), phase: t('stage') })[e.kind] || e.kind), h('small', {}, e.metadata?.tool_name ? `${e.metadata.tool_name} · ${t(e.metadata.tool_status)}` : e.text?.split('\n')[0].slice(0, 110) || e.title || t(e.status || e.phase || e.kind))), h('time', { className: 'mono tiny' }, date(e.at))), () => showDialog(e.name || e.kind, h('pre', {}, JSON.stringify(e, null, 2)), null, t('close')), { className: 'event-row', 'data-event-id': e.id, testId: e.kind === 'hook' ? `hook-${e.name}` : undefined }))) : empty(t('noEvents'), t(isHooks() ? 'hookWaiting' : 'eventHint'));
@@ -195,7 +229,7 @@ function eventsView() {
   const input = h('input', { type: 'search', placeholder: t('searchEvents'), value: eventFilter, 'aria-label': t('searchEvents'), onInput: e => { eventFilter = e.target.value; document.getElementById('event-results').replaceChildren(eventRows(false)); } });
   return [pageHeading(t('events'), t('eventHint')), isHooks() ? sourceBanner() : null, h('div', { className: 'event-filters' }, input, button(t(errorFilter ? 'all' : 'errors'), () => { errorFilter = !errorFilter; render(); }, { kind: errorFilter ? 'primary' : 'quiet' })), h('section', { className: 'card', id: 'event-results' }, eventRows(false))];
 }
-async function loadSessions() { try { sessions = (await request('/api/sessions')).sessions; render(); } catch (e) { notify(e.message); } }
+async function loadSessions() { try { sessions = (await request('/api/sessions', undefined, 'sessions')).sessions; render(); } catch (e) { notify(e.message); } }
 async function selectSource(data) { connecting = true; render(); try { await updateFromRequest('/api/source', data); sessions = []; eventFilter = ''; errorFilter = false; await loadSessions(); notify(t('success')); } catch (e) { notify(e.message); } finally { connecting = false; render(); } }
 function hookStatus() {
   const d = snapshot.source.diagnostics;
@@ -219,7 +253,7 @@ function connectionView() {
     card(t('logs'), t('logsDetail'), h('div', { className: 'connection-content' }, badge(t('readonly'), 'auto_verified'), h('div', { className: 'button-group' }, button(t('connectLocal'), () => selectSource({ mode: 'local' }), { kind: 'primary', disabled: connecting, testId: 'connect-local' }), button(t('discover'), loadSessions, { kind: 'quiet' })))),
     card(t('rpc'), t('rpcDetail'), h('div', { className: 'connection-content' }, h('label', { for: 'endpoint' }, t('endpoint')), endpoint, button(connecting ? t('connecting') : t('connect'), () => selectSource({ mode: 'app-server', endpoint: endpoint.value }), { kind: 'quiet', disabled: connecting }))),
     card(t('demoTitle'), t('demoDescription'), h('div', { className: 'connection-content' }, badge(t('demo'), 'awaiting_human'), h('div', { className: 'button-group' }, button(t('showcase'), () => selectSource({ mode: 'demo', scenario: 'showcase' }), { kind: 'primary', testId: 'demo-showcase' }), button(t('noPlanDemo'), () => selectSource({ mode: 'demo', scenario: 'no-plan' }), { kind: 'quiet', testId: 'demo-no-plan' }))))),
-    isHooks() ? hookStatus() : null, isHooks() ? hookAttribution() : contentAccess(),
+    isHooks() ? hookStatus() : null, isHooks() ? hookAttribution() : contentAccess(), evidenceAccess(),
     card(t(isHooks() ? 'hookSessions' : 'logs'), `${list.length} · ${t('source')}`, list.length ? h('div', { className: 'session-list' }, list.map(s => button(h('span', { className: 'session-layout' }, h('span', {}, h('strong', {}, isHooks() ? originLabel(s.origin) : s.title || s.id), h('small', { className: 'mono' }, s.id), h('small', { className: 'mono' }, s.cwd)), h('span', {}, s.id === snapshot.task.id ? badge(t('selected'), 'auto_verified') : s.current ? badge(t('currentEnvironment'), 'auto_verified') : null, h('small', {}, `${t('lastUpdated')} ${date(s.updatedAt)}`)), icon('arrow')), () => selectSource({ mode: isHooks() ? 'work-hooks' : snapshot.source.mode === 'app-server' ? 'app-server' : 'local', id: s.id, endpoint: snapshot.source.endpoint }), { className: 'session-row', testId: `session-${s.id}` }))) : empty(t('noSessions'), t(isHooks() ? 'hookSetupHint' : 'noSessionsHint'), button(t('discover'), loadSessions, { kind: 'quiet' }))),
     card(t('boundaries'), '', h('p', { className: 'boundary-copy' }, t('boundariesDetail'))), diagnostics()];
 }
@@ -235,21 +269,39 @@ function diagnostics() {
   return messages.length ? h('div', { className: 'diagnostics' }, h('strong', {}, t('errorsTitle')), messages.map(m => h('p', {}, m))) : null;
 }
 async function boot() {
+  clearTimeout(retryTimer); activeStream?.close(); const handshake = receiver.begin(); clearSensitive();
   try {
-    token = (await request('/api/bootstrap')).token; snapshot = await request('/api/snapshot'); render();
-    const stream = new EventSource('/api/stream');
-    stream.onopen = () => { if (!streamConnected) { streamConnected = true; render(); } };
-    stream.onerror = () => { streamConnected = false; render(); };
+    const bootstrap = await wireRequest('/api/bootstrap');
+    if (!receiver.bootstrap(bootstrap, handshake)) return;
+    token = bootstrap.token;
+    snapshot = await request('/api/snapshot', undefined, 'snapshot'); streamConnected = true; render();
+    const stream = new EventSource('/api/stream'), ticket = receiver.ticket('snapshot'); activeStream = stream;
+    stream.onopen = () => { if (receiver.isCurrent(ticket)) { streamConnected = true; render(); } };
+    stream.onerror = () => {
+      if (!receiver.isCurrent(ticket)) return;
+      stream.close(); receiver.invalidate(); clearSensitive(); retryTimer = setTimeout(boot, 500);
+    };
+    stream.addEventListener('authority', event => { if (!receiver.heartbeat(JSON.parse(event.data), ticket) && receiver.isCurrent(ticket)) { receiver.invalidate(); clearSensitive(); retryTimer = setTimeout(boot, 0); } });
     stream.addEventListener('snapshot', event => {
-      const next = JSON.parse(event.data), nextSignature = JSON.stringify({ ...next, observedAt: null }); snapshot = next;
+      const next = JSON.parse(event.data); if (!receiver.accept(next, ticket)) return;
+      const nextSignature = JSON.stringify({ ...next, observedAt: null, access: { ...next.access, publicationSeq: null } }); snapshot = next;
       if (signature !== nextSignature) { signature = nextSignature; if (renderedScope !== scopeKey(next) || !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) render(); else refreshMonitorCard(); }
     });
-    document.addEventListener('focusout', () => setTimeout(() => { if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) && !document.querySelector('dialog[open]')) render(); }, 0));
-  } catch (e) { document.getElementById('app').replaceChildren(empty(t('transportError'), e.message, button(t('connect'), boot, { kind: 'primary' }))); }
+  } catch (e) {
+    if (!receiver.isCurrent(handshake)) return;
+    clearSensitive(); document.getElementById('app').replaceChildren(empty(t('transportError'), e.message, button(t('connect'), boot, { kind: 'primary' })));
+    retryTimer = setTimeout(boot, 1500);
+  }
 }
+channel?.addEventListener('message', event => { if (event.data?.type === 'invalidate' && event.data.instance === receiver.instance) { receiver.invalidate(); clearSensitive(); retryTimer = setTimeout(boot, 0); } });
+document.addEventListener('visibilitychange', () => { receiver.invalidate(); activeStream?.close(); clearSensitive(); if (!document.hidden) boot(); });
+window.addEventListener('offline', () => { receiver.invalidate(); activeStream?.close(); clearSensitive(); });
+window.addEventListener('online', boot);
+window.addEventListener('pageshow', event => { if (event.persisted) boot(); });
+document.addEventListener('focusout', () => setTimeout(() => { if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) && !document.querySelector('dialog[open]')) render(); }, 0));
 boot();
-// Expire a cached activity even when an open SSE connection silently stops delivering.
 setInterval(() => {
+  if (snapshot && !receiver.fresh()) { receiver.invalidate(); clearSensitive(); if (!document.hidden) boot(); return; }
   if (!snapshot || view !== 'overview') return;
   const label = document.querySelector('[data-testid="monitor-status"]');
   if (label && label.textContent !== t(displayMonitor().status)) refreshMonitorCard();

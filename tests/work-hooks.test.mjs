@@ -1,3 +1,4 @@
+import { scope } from './access-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -185,7 +186,7 @@ test('live service separates Hook metadata from Codex evidence and persists expl
   const server = await createApplication(options);
   t.after(() => server.close());
   const boot = await (await fetch(server.url + '/api/bootstrap')).json();
-  const post = (url, data) => fetch(server.url + url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-APS-Token': boot.token }, body: JSON.stringify(data) });
+  const post = (url, data) => fetch(server.url + url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-APS-Token': boot.token }, body: JSON.stringify({ ...data, ...scope(server) }) });
   const connected = await post('/api/source', { mode: 'work-hooks' }); assert.equal(connected.status, 200);
   const empty = await connected.json(); assert.equal(empty.source.connected, false); assert.equal(empty.acceptance.percent, null);
   await callback(eventsDir, metadata('UserPromptSubmit'), 1); await server.service.tick();
@@ -195,25 +196,27 @@ test('live service separates Hook metadata from Codex evidence and persists expl
   assert.equal(s.evidence.git.available, false); assert.equal(s.task.usage.total, null);
   assert.equal((await post('/api/hook-origin', { sessionId: session, origin: 'work-local' })).status, 200);
   assert.equal(server.service.snapshot.source.origin, 'work-local'); assert.equal(server.service.snapshot.source.attribution, 'user-confirmed');
-  const persisted = JSON.parse(await readFile(path.join(root, 'data/session-access.json'), 'utf8')); assert.deepEqual(persisted.sessions[session], { origin: 'work-local', bodyRead: false });
+  const persisted = JSON.parse(await readFile(path.join(root, 'data/session-access.json'), 'utf8')); assert.ok(Object.values(persisted.entries).some(e => e.origin === 'work-local' && !e.content.allowed));
   // Shared runtimes may also leave a JSONL header for Work. Do not relabel or read it as Codex content.
   await writeFile(path.join(codexHome, `sessions/rollout-${session.toUpperCase()}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { id: session, cwd: root } }) + '\n' + JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'PRIVATE_WORK_CONTENT' } }) + '\n');
-  assert.equal((await server.service.discover()).some(s => s.id === session), false);
-  assert.equal((await post('/api/source', { mode: 'local', id: session })).status, 400);
+  assert.equal((await server.service.discover()).find(s => s.id === session).bodyRead, false);
+  assert.equal((await post('/api/source', { mode: 'local', id: session })).status, 200);
+  assert.equal(server.service.snapshot.source.origin, 'unknown', 'Hook labels do not attest a different backend');
   assert.doesNotMatch(JSON.stringify(server.service.snapshot), /PRIVATE_WORK_CONTENT/);
-  const restarted = await createApplication({ ...options, mode: 'work-hooks' }); t.after(() => restarted.close());
-  assert.equal(restarted.service.snapshot.source.origin, 'work-local');
+  await assert.rejects(createApplication({ ...options, mode: 'work-hooks' }), /already open/);
   assert.equal((await post('/api/hook-origin', { sessionId: 'not-found', origin: 'codex' })).status, 400);
   assert.equal((await post('/api/source', { mode: 'local', id: 'abcdef12-abcd-4abc-8abc-abcdef123456' })).status, 200);
   assert.equal(server.service.snapshot.task.title, '');
   assert.equal((await post('/api/session-access', { sessionId: 'abcdef12-abcd-4abc-8abc-abcdef123456', decision: 'allow-codex' })).status, 200);
   assert.equal(server.service.snapshot.task.title, 'Codex fixture still works');
-  assert.equal(server.service.snapshot.source.origin, 'codex'); assert.equal(server.service.snapshot.workspace, root);
+  assert.equal(server.service.snapshot.source.origin, 'codex'); assert.equal(server.service.snapshot.workspace, null, 'Body access does not grant workspace evidence');
   assert.deepEqual(server.service.snapshot.hookSessions, []);
   assert.equal((await post('/api/source', { mode: 'work-hooks', id: session })).status, 200);
   assert.equal(server.service.snapshot.workspace, null); assert.equal(server.service.snapshot.source.origin, 'work-local');
   assert.equal((await post('/api/source', { mode: 'demo', scenario: 'showcase' })).status, 200);
   assert.equal(server.service.snapshot.source.mode, 'demo'); assert.equal(server.service.snapshot.acceptance.percent, 33.3);
+  await server.close(); const restarted = await createApplication({ ...options, mode: 'work-hooks' }); t.after(() => restarted.close());
+  assert.equal(restarted.service.snapshot.source.origin, 'work-local');
 });
 
 test('known Work sessions are excluded before the Codex discovery limit', async t => {

@@ -35,7 +35,7 @@ In another terminal, start an endpoint you own:
 codex app-server --listen ws://127.0.0.1:4500
 ```
 
-RC3 only polls IDs already discovered locally and explicitly granted as Codex; it does not list the endpoint’s other threads or parse unsolicited notifications. Responses without a leading numeric request ID are rejected. Real-host compatibility of this restriction is pending manual acceptance.
+RC4 uses thread/loaded/list for ID-only discovery. Select an ID and explicitly grant that endpoint scope before history reading. Replies use JSON structure and typed IDs, independent of field order. Scoped plan/token/tool notifications are accepted if the host delivers them; thread/read does not create a cross-client subscription. Real-host delivery remains pending manual acceptance.
 
 Then enter that address in Connections → Codex app-server. Its transport is experimental. The dashboard supports unauthenticated literal loopback endpoints only. Authentication support is deferred; do not disable authentication on an existing secured service just to connect. `thread/read` does not resume/subscribe, so live desktop data may be more complete via the log source. Stop this separately launched server with Ctrl+C when finished.
 
@@ -43,14 +43,14 @@ Then enter that address in Connections → Codex app-server. Its transport is ex
 
 ## Upgrade / 升级
 
-Stop the dashboard, extract a new version to a new folder, and optionally copy `.aps-data/reviews.json` and the source labels/permissions you intend to retain. Legacy `hook-origins.json` labels migrate without content grants; a corrupt access file denies all. Keep old reports/exports until you have verified the upgrade. Evidence fingerprints will invalidate approvals when sources/definitions differ.
+Stop the dashboard, extract a new version to a new folder, and optionally preserve `.aps-data/reviews/` and the source labels/permissions you intend to retain. Do not copy an active data directory; only one server may own it. v1 body grants require reconfirmation; legacy mixed `reviews.json` remains untouched and is not automatically read. Legacy `hook-origins.json` labels migrate without content grants; a corrupt access file denies all. Keep old reports/exports until you have verified the upgrade. Evidence fingerprints will invalidate approvals when sources/definitions differ.
 
-停止服务后解压新版本到新目录，需要时复制 `.aps-data/reviews.json`。保留旧导出；版本变化导致的验收失效属于正常行为。
+停止服务后解压新版本到新目录，需要时保留 `.aps-data/reviews/` 和权限文件。请先正常停止；同一数据目录仅允许一个实例。v1 正文权限须重新确认，旧 `reviews.json` 保留但不自动读取。保留旧导出；版本变化导致的验收失效属于正常行为。
 
 ## Uninstall / 卸载
 
 1. Press Ctrl+C in the dashboard's launch window; close its browser tab.
-2. Save exported reports or `.aps-data/reviews.json` if needed.
+2. Save exported reports, `.aps-data/reviews/`, and any legacy `reviews.json` you wish to retain.
 3. Delete the extracted Agent Progress Studio directory. If `--data-dir` was used, remove only that explicitly chosen data directory if you no longer need its records.
 4. Optionally clear site data for `http://127.0.0.1:4317` to remove language/theme preferences. Node, Git and your browser are shared tools; leave them installed if other projects use them.
 
@@ -65,3 +65,5 @@ Stop the dashboard, extract a new version to a new folder, and optionally copy `
 - Stale report: rerun the project test producer against unchanged sources.
 - A large/binary/symlinked source tree can exceed fingerprint limits; verification remains unknown. See EVIDENCE.md before changing those limits.
 - Browser offline: keep the service terminal running; reload the tab. SSE reconnects and receives the latest authoritative snapshot.
+
+Workspace evidence requires a separate explicit grant. Choose a project root outside protected session/Hook/APS data stores. If inspecting this dashboard source itself, use `--data-dir` and `--work-hooks-dir` outside that source tree. A `--workspace` argument selects a candidate; it does not grant access.
