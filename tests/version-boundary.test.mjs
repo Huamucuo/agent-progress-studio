@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -38,4 +39,23 @@ test('architectural import guard: business readers and process/network edges rem
   }
   await walk('src');
   assert.match(await readFile('src/adapters/codex-log.mjs', 'utf8'), /import \{ readdir, lstat \} from 'node:fs\/promises'/);
+});
+
+test('M-01 fixed-tree ZIP hashes describe exported bytes and ignore user autocrlf settings', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'aps-package-')), source = root + '/source';
+  t.after(() => rm(root, { recursive: true, force: true })); await mkdir(source + '/scripts', { recursive: true });
+  const git = (...args) => execFileSync('git', ['-C', source, ...args], { windowsHide: true });
+  await writeFile(source + '/scripts/release.mjs', await readFile('scripts/release.mjs'));
+  await writeFile(source + '/.gitattributes', '* text=auto\n*.cmd text eol=crlf\n');
+  await writeFile(source + '/package.json', JSON.stringify({ version: '0.1.1-rc.4' }) + '\n');
+  await writeFile(source + '/start.cmd', '@echo off\necho synthetic\n');
+  git('init', '-q'); git('add', '.'); git('-c', 'user.name=APS Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture');
+  let previous;
+  for (const value of ['true', 'false']) {
+    git('config', 'core.autocrlf', value);
+    const release = JSON.parse(execFileSync(process.execPath, [source + '/scripts/release.mjs', '--out-dir', root + '/out-' + value], { encoding: 'utf8', windowsHide: true }));
+    const manifest = JSON.parse(await readFile(release.zip.replace(/\.zip$/, '.files.json'))), row = manifest.files.find(x => x.path === 'start.cmd');
+    assert.equal(row.sha256, createHash('sha256').update('@echo off\r\necho synthetic\r\n').digest('hex'));
+    if (previous) assert.equal(release.sha256, previous, 'Identical committed tree produces identical archive bytes'); previous = release.sha256;
+  }
 });
