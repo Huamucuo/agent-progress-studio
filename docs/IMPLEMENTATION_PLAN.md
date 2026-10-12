@@ -10,7 +10,7 @@
 
 ## Global constraints
 
-Local only, zero runtime dependencies, Node >=22.15, no competitor code copied, no user credentials/config changes, no fake percentages or ETA. All user-facing deliverables stay under this project directory.
+Local only, zero runtime dependencies, no competitor code copied, no user credentials/config changes, no fake percentages or ETA. The initial plan used Node >=22.15; current requirements are `^22.17.0 || ^24.2.0` in [INSTALL.md](INSTALL.md). All user-facing deliverables stay under this project directory.
 
 ## Review focus
 

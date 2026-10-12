@@ -11,7 +11,7 @@ A quiet, bilingual observability workspace: left navigation and source selector,
 
 ## Chosen approach
 
-Node.js >=22.15, ES modules, native HTTP/SSE, vanilla component modules. Zero production dependencies. Built-in node:test for unit/integration tests; Playwright as an optional development dependency for browser tests. Portable Windows launchers run the same source distribution.
+The initial design used Node.js >=22.15. Current runtime requirements are maintained in [INSTALL.md](INSTALL.md): `^22.17.0 || ^24.2.0`. ES modules, native HTTP/SSE, vanilla component modules. Zero production dependencies. Built-in node:test for unit/integration tests; Playwright as an optional development dependency for browser tests. Portable Windows launchers run the same source distribution.
 
 Alternatives considered: Electron adds packaging and native runtime weight before the browser use case needs it; a hosted MCP application changes the privacy and transport model. Both are deferred. A React/build-tool stack is viable but unnecessary for this first, small reusable component library.
 

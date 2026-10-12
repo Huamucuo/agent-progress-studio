@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased — independent boundary repair (2026-10-12)
+## Unreleased — Windows CI compatibility follow-up (2026-10-12)
+
+- Correct the declared runtime range to `^22.17.0 || ^24.2.0` and test Node 22.17.0/24.17.0, which include upstream Windows file metadata fixes. Exclude Node 23, early Node 24 and unreviewed future majors. Dependency versions and permissions are unchanged.
+- Canonicalize the newly created synthetic temporary root before deriving fixture homes, keeping the existing path/identity guards and assertions intact.
+- Record the initial hosted failures and separate branch/PR checks. Source is public; real-host acceptance and stable release remain pending.
+
+## Independent boundary repair (2026-10-12)
 
 - Disable configured Git signature-verifier execution while collecting evidence.
 - Validate Hook directory/file identities before bounded reads; reject aliases and hard links. Preserve each poll's captured grant and stage state changes until its final check.
