@@ -17,6 +17,7 @@ const context = await new DataGateway(authority, registry).evidence(ref, canonic
 const before = await sourceFingerprint(root, options);
 const jobs = [
   ['authority', ['--test', 'tests/authority.test.mjs']],
+  ['public-preview-boundaries', ['--test', 'tests/public-boundaries.test.mjs', 'tests/public-boundary-alternates.test.mjs']],
   ['boundary', ['--test', 'tests/resource-boundary.test.mjs']],
   ['publication', ['--test', 'tests/publication.test.mjs']],
   ['baseline-regression', ['--test', 'tests/rc4-baseline.test.mjs']],

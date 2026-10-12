@@ -10,7 +10,7 @@ export function scanEnvelope(text) {
     while (i < text.length) {
       const ch = text[i++]; if (ch === '"') return value;
       if (ch.charCodeAt(0) < 32) throw new Error('Invalid JSON control');
-      if (ch !== '\\') { if (decode) value += ch; continue; }
+      if (ch !== '\\') { if (decode) { value += ch; if (value.length > 4096) throw new Error('RPC routing scalar limit'); } continue; }
       const escaped = text[i++], simple = { '"': '"', '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
       if (escaped === 'u') { const hex = text.slice(i, i + 4); if (!/^[a-f0-9]{4}$/i.test(hex)) throw new Error('Invalid JSON escape'); i += 4; if (decode) value += String.fromCharCode(parseInt(hex, 16)); }
       else { if (!Object.hasOwn(simple, escaped)) throw new Error('Invalid JSON escape'); if (decode) value += simple[escaped]; }
@@ -42,7 +42,7 @@ export function scanEnvelope(text) {
   const scalar = node => { if (node?.type === 'string') { if (node.end - node.start > 8192) throw new Error('RPC scalar limit'); const saved = i; i = node.start; const result = string(true); i = saved; return result; } return node?.type === 'number' ? text.slice(node.start, node.end) : undefined; };
   const id = at('id'); let requestKey;
   if (id?.type === 'string') requestKey = 's:' + scalar(id);
-  else if (id?.type === 'number') { const n = scalar(id); if (!/^-?(?:0|[1-9]\d*)$/.test(n) || BigInt(n) < -9223372036854775808n || BigInt(n) > 9223372036854775807n) throw new Error('Invalid request ID'); requestKey = 'n:' + BigInt(n).toString(); }
+  else if (id?.type === 'number') { const n = scalar(id); if (n.length > 20 || !/^-?(?:0|[1-9]\d*)$/.test(n) || BigInt(n) < -9223372036854775808n || BigInt(n) > 9223372036854775807n) throw new Error('Invalid request ID'); requestKey = 'n:' + BigInt(n).toString(); }
   else if (id) throw new Error('Invalid request ID');
   return { at, scalar, requestKey, hasId: !!id, method: scalar(at('method')), parse: node => JSON.parse(text.slice(node.start, node.end)), root };
 }

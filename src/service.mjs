@@ -71,10 +71,10 @@ export class StudioService extends EventEmitter {
         const scope = sessionRef(this.hookBackend, 'scope');
         // Selecting the installed opt-in metadata adapter explicitly enables observation.
         if (!this.access.can(scope, 'observe')) await this.access.change(scope, { observe: true }, this.access.revision);
-        next = new WorkHookSource(this.workHooksDir, sessionKey(config.id) || '', { access: this.access, ref: scope });
+        next = new WorkHookSource(this.workHooksDir, sessionKey(config.id) || '', { access: this.access, ref: scope, registry: this.registry });
         await next.poll(); if (config.id && !next.received) { next.close(); throw new Error('Hook session no longer available'); }
       } else if (config.mode === 'app-server') {
-        next = new AppServerSource(validateEndpoint(config.endpoint), { access: this.access });
+        next = new AppServerSource(validateEndpoint(config.endpoint), { access: this.access, experimentalApi: config.experimentalApi === true });
         const candidates = await next.connect(); selected = candidates.find(s => s.id === sessionKey(config.id || process.env.CODEX_THREAD_ID)) || (!config.id && candidates[0]);
         if (config.id && !selected) { next.close(); throw new Error('Unknown RPC candidate'); }
         if (selected) await next.select(selected.id);

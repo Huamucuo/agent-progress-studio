@@ -5,10 +5,10 @@ import { scanEnvelope } from '../src/adapters/rpc-envelope.mjs';
 import { SessionAccess, sessionRef } from '../src/core/session-access.mjs';
 import { fakeRpc } from './rpc-fixture.mjs';
 const endpoint = 'ws://127.0.0.1:4500/', ref = sessionRef('rpc:' + endpoint, 'rpc-a');
-async function client(t, granted = true) {
+async function client(t, granted = true, options = {}) {
   const f = fakeRpc(t), access = new SessionAccess();
   if (granted) await access.change(ref, { origin: 'codex', content: true }, access.revision);
-  const source = new AppServerSource(endpoint, { access, timeoutMs: 80 }); t.after(() => source.close()); await source.connect(); await source.select(ref.id); return { f, access, source };
+  const source = new AppServerSource(endpoint, { access, timeoutMs: 80, ...options }); t.after(() => source.close()); await source.connect(); await source.select(ref.id); return { f, access, source };
 }
 test('app-server endpoint permits only literal loopback; unknown and mutating methods never send', async t => {
   assert.equal(validateEndpoint('ws://127.0.0.1:4500'), endpoint);
@@ -89,7 +89,7 @@ test('T-03 notification arriving during a history request wins without losing ne
 });
 
 test('R05 official turn/item page shapes preserve turn identity and legacy fallback', async t => {
-  const { f, source } = await client(t); f.history.turns = [{ id: 'turn-one', status: 'inProgress', itemsView: 'summary', items: [] }];
+  const { f, source } = await client(t, true, { experimentalApi: true }); f.history.turns = [{ id: 'turn-one', status: 'inProgress', itemsView: 'summary', items: [] }];
   const original = f.reply;
   f.reply = request => request.method === 'thread/turns/list' ? { data: [{ id: 'turn-one', status: 'inProgress', itemsView: 'notLoaded', items: [] }] }
     : request.method === 'thread/items/list' ? { data: [{ turnId: 'turn-one', item: { id: request.params.cursor ? 'second' : 'first', type: 'commandExecution', command: 'fixture', status: 'completed', exitCode: 0 } }], nextCursor: request.params.cursor ? null : 'items-page2' }

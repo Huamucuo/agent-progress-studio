@@ -119,14 +119,14 @@ export class DataGateway {
       let config = ''; try { config = await this.gitConfig(context, file); } catch (e) { if (e.code !== 'ENOENT') throw e; }
       if (/^\s*\[\s*(?:include|includeif|filter)\b/im.test(config)) throw new Error('Git includes and clean filters require separate review');
     }
-    const commands = { index: ['ls-files', '-z'], status: ['status', '--porcelain=v1', '-z', '--untracked-files=normal', '--ignore-submodules=all', '--', ...args.map(p => `:(literal)${p}`)], log: ['log', '-5', '--format=%H%x09%aI%x09%s'], branch: ['branch', '--show-current'] };
+    const commands = { index: ['ls-files', '-z'], status: ['status', '--porcelain=v1', '-z', '--untracked-files=normal', '--ignore-submodules=all', '--', ...args.map(p => `:(literal)${p}`)], log: ['log', '--no-show-signature', '-5', '--format=%H%x09%aI%x09%s'], branch: ['branch', '--show-current'] };
     let command = commands[operation];
     if (operation === 'status') { if (!args.length) return ''; for (const file of args) await this.file(context, file, { missing: true }); }
     if (operation === 'diff' || operation === 'commit') {
       const paths = operation === 'commit' ? args.slice(1) : args;
       for (const file of paths) await this.file(context, file, { missing: true });
       if (operation === 'commit' && !/^[a-f0-9]{40,64}$/.test(args[0])) throw new Error('Invalid commit');
-      command = operation === 'commit' ? ['show', '--no-ext-diff', '--no-textconv', '--ignore-submodules=all', '--format=fuller', '--stat', args[0], '--', ...paths.map(p => `:(literal)${p}`)] : ['diff', '--no-ext-diff', '--no-textconv', '--ignore-submodules=all', 'HEAD', '--', ...paths.map(p => `:(literal)${p}`)];
+      command = operation === 'commit' ? ['show', '--no-show-signature', '--no-ext-diff', '--no-textconv', '--ignore-submodules=all', '--format=fuller', '--stat', args[0], '--', ...paths.map(p => `:(literal)${p}`)] : ['diff', '--no-ext-diff', '--no-textconv', '--ignore-submodules=all', 'HEAD', '--', ...paths.map(p => `:(literal)${p}`)];
       if (!paths.length) return '';
     }
     await this.gitWorktreeInputs(context, operation === 'commit' ? args.slice(1) : args);
@@ -136,7 +136,7 @@ export class DataGateway {
     const nullFile = process.platform === 'win32' ? 'NUL' : '/dev/null';
     Object.assign(env, { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: nullFile, GIT_ATTR_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', GIT_OPTIONAL_LOCKS: '0', GIT_NO_LAZY_FETCH: '1' });
     this.check(context);
-    const { stdout } = await promisify(execFile)('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=', '-c', 'core.untrackedCache=false', '-c', 'diff.external=', '-c', 'core.attributesFile=', '-c', 'core.excludesFile=', '-c', `diff.orderFile=${nullFile}`, '-c', 'mailmap.file=', '-c', 'mailmap.blob=', '-c', 'log.mailmap=false', '-c', 'submodule.recurse=false', `--git-dir=${gitDir}`, `--work-tree=${context.root}`, ...command], { cwd: context.root, env, windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024 });
+    const { stdout } = await promisify(execFile)('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=', '-c', 'core.untrackedCache=false', '-c', 'diff.external=', '-c', 'core.attributesFile=', '-c', 'core.excludesFile=', '-c', `diff.orderFile=${nullFile}`, '-c', 'mailmap.file=', '-c', 'mailmap.blob=', '-c', 'log.mailmap=false', '-c', 'log.showSignature=false', '-c', 'submodule.recurse=false', `--git-dir=${gitDir}`, `--work-tree=${context.root}`, ...command], { cwd: context.root, env, windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024 });
     this.check(context); return stdout;
   }
   reviewPath(context, dataDir) { this.check(context); return path.join(dataDir, 'reviews', createHash('sha256').update(refKey(context.ref) + ':' + context.root + ':' + JSON.stringify(context.permits.map(p => p.dependency))).digest('hex') + '.json'); }
