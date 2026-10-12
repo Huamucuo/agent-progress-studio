@@ -13,7 +13,8 @@ Preparation date: **2026-10-12**. Retained original baseline: `0.1.1-rc.4`, comm
 | Project verifier | Disposable synthetic source copy; local acceptance report only | 14/14 named groups passed; exit 0 and stableSource=true. Generated `.agent-progress/results.json` is excluded from public source. |
 | Browser and privacy suites | Installed Edge and locked Playwright; disposable synthetic source/session copy | 17 UI and 6 named privacy flows passed; exit 0, no page errors. The privacy report also contains a timing metric, which is not an additional flow. Edge product version was not newly captured. |
 | License and package boundary | Same package/lockfile, own MIT and retained third-party notices | No new dependency or imported asset. Playwright/Playwright-core Apache-2.0 with embedded notices; optional fsevents MIT. See [inventory](DEPENDENCY-LICENSES.md). |
-| Hosted CI | Proposed Windows/Ubuntu × Node 22.15.0/24.17.0 | Not run on GitHub before publication approval. |
+| Initial published-source CI | Windows/Ubuntu × Node 22.15.0/24.17.0 | Both Ubuntu jobs passed; Windows 22.15.0 failed filesystem validation and Windows 24.17.0 reached its job limit. [Original run](https://github.com/Huamucuo/agent-progress-studio/actions/runs/38248840712). |
+| CI compatibility follow-up | Canonical synthetic temporary root; Node 22.17.0/24.17.0 | New matrix results must be read from the follow-up PR; no runtime permission guard is relaxed. |
 | Real Codex/Work or external app-server | No actual user sessions used | Not tested or renewed. Requires separately authorized host/manual acceptance. |
 | Other systems and minimum declared Node | Not exercised in the measured local repair run | Unverified; a declared requirement or proposed matrix is not compatibility evidence. |
 
@@ -44,4 +45,12 @@ The verifier produces source-fingerprinted acceptance checks in `.agent-progress
 
 ## Historical evidence and remaining gates
 
-The 2026-10-10 NEEDS_REWORK report applies to the preserved original commit. Earlier engineering notes and host observations remain historical. [Remediation status](KNOWN-ISSUES.md) identifies the five changes and unresolved host, platform and release gates. Source publication still requires owner approval of exact files and history. Stable distribution additionally requires real-host acceptance, required hosted checks, package audit, immutable release evidence and explicit release approval.
+The 2026-10-10 NEEDS_REWORK report applies to the preserved original commit. Earlier engineering notes and host observations remain historical. [Remediation status](KNOWN-ISSUES.md) identifies the five changes and unresolved host, platform and release gates. The owner approved the exact initial source/history scope and it is now public. Follow-up changes require branch/PR review and appropriate merge authorization. Stable distribution additionally requires real-host acceptance, required hosted checks, package audit, immutable release evidence and explicit release approval.
+
+## Windows CI compatibility follow-up
+
+The declared runtime range is `^22.17.0 || ^24.2.0`. [Node 22.17.0's official release](https://nodejs.org/en/blog/release/v22.17.0) updates libuv to 1.51.0, whose [changelog](https://github.com/libuv/libuv/blob/v1.51.0/ChangeLog) includes Windows file metadata and volume-serial corrections. [Node 24.1.0's tagged header](https://github.com/nodejs/node/blob/v24.1.0/deps/uv/include/uv/version.h) still has libuv 1.50.0; [Node 24.2.0's header](https://github.com/nodejs/node/blob/v24.2.0/deps/uv/include/uv/version.h) has 1.51.0. The major-line ranges exclude Node 23, early Node 24 and unreviewed future majors. Node 22.15.0 Windows CI rejected ordinary synthetic file/Git reads during strict identity comparison. The upstream defect is a supported explanation, not proof that every failure had one cause.
+
+The fixture runner also canonicalizes its newly created temporary root before deriving synthetic homes. An owned alias-root experiment with the existing nine collector tests changed from four passing/five failing to nine passing, without application or test changes. The first long-path diagnostic had separate Git filename-length failures and was corrected; those records remain local. The original hosted run did not print literal TMP/TEMP, so a specific 8.3 spelling has not been established.
+
+Runtime guards, test assertions, dependency versions, Hook deadlines and public-source history stay intact. This fixes declared tooling compatibility and test setup; real-host/manual acceptance and stable release remain separate gates.

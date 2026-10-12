@@ -10,7 +10,7 @@ A local browser dashboard that separates an agent's reported plan, observed acti
 
 ## Try the offline demo
 
-The manifest declares **Node.js 22.15.0 or newer**. The fresh local checks use Node 24.17.0 on Windows x64; the minimum version, Linux and macOS have not been locally certified by this preparation.
+The manifest declares **Node.js 22.x from 22.17.0, or 24.x from 24.2.0** (`^22.17.0 || ^24.2.0`). Node 23 and earlier Node 24 releases are excluded because they lack the cited Windows metadata fixes. Other major versions are not declared supported. The fresh local checks use Node 24.17.0 on Windows x64; the minimum versions, Linux and macOS have not been locally certified by this preparation. Hosted results are recorded separately below.
 
 From the source directory, run:
 
@@ -67,7 +67,7 @@ node scripts/ci-offline.mjs --browser
 
 On Windows the browser suite uses installed Edge. On other systems a separately installed Playwright Chromium is needed; those runs are not certified here. Provisioning the dependency/browser can use the network; fixtures and test servers are local. Generated reports/screenshots stay local and are ignored. The proposed CI installs no npm packages and uploads no artifacts.
 
-Fresh local results and historical evidence are separated in [VERIFICATION.md](docs/VERIFICATION.md). Tests cover synthetic cases; the independent review covers this exact fix and does not certify every integration. The proposed Actions matrix has not yet run on GitHub.
+Fresh local results and historical evidence are separated in [VERIFICATION.md](docs/VERIFICATION.md). Tests cover synthetic cases; the independent review covers this exact fix and does not certify every integration. The first hosted matrix exposed Windows filesystem validation differences; a follow-up PR corrects the runtime minimum and synthetic temporary-root setup. See the linked verification record for actual results.
 
 ## Privacy and compatibility
 
@@ -91,4 +91,4 @@ experiments/  separately installed optional metadata Hook
 docs/         architecture, limitations, verification and development records
 ```
 
-This preparation creates a local repair branch and commits while preserving all nine original commits. It does not create a public repository, push history, open a PR, issue a tag or publish a release. Publication still requires the owner's review of the exact file and history scope.
+The approved source preview is public at [Huamucuo/agent-progress-studio](https://github.com/Huamucuo/agent-progress-studio), preserving all nine original commits plus the reviewed repair and documentation commits. CI compatibility changes follow the branch/PR review process. No stable tag, release or public service has been issued.

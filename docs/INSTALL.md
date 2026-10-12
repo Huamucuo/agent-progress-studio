@@ -4,7 +4,7 @@ This candidate is a development preview with scoped boundary fixes and unverifie
 
 ## Isolated demo
 
-1. Install Node.js. The package declares 22.15.0 or newer; current local evidence covers Node 24.17.0 on Windows x64.
+1. Install Node.js 22.x at version 22.17.0 or later, or 24.x at version 24.2.0 or later (`^22.17.0 || ^24.2.0`). Node 23, earlier Node 24 releases and other major versions are outside the declared support range. Current local evidence covers Node 24.17.0 on Windows x64.
 2. Put the source in a directory you own. The runnable distribution is the source; it needs no build or npm installation.
 3. From that directory, run `node src/server.mjs --demo --codex-home ./work/synthetic-codex --data-dir ./work/demo-state`.
 4. Open `http://127.0.0.1:4317`. Ctrl+C stops the server.

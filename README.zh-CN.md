@@ -10,7 +10,7 @@
 
 ## 用隔离目录开始演示
 
-项目声明需要 **Node.js 22.15.0 或更新版本**。本轮本机测试环境为 Windows x64、Node 24.17.0；最低版本、Linux 与 macOS 未在本轮获得本机兼容认证。
+项目声明支持 **Node.js 22.x（至少 22.17.0）或 24.x（至少 24.2.0）**，范围为 `^22.17.0 || ^24.2.0`。Node 23 与较早的 Node 24 缺少所引用的 Windows 文件元数据修复，已排除；其他主版本尚未声明支持。本轮本机测试环境为 Windows x64、Node 24.17.0；最低版本、Linux 与 macOS 未在本轮获得本机兼容认证，托管结果另行记录。
 
 在源码目录运行：
 
@@ -61,7 +61,7 @@ node scripts/ci-offline.mjs --browser
 
 Windows 浏览器测试使用已安装 Edge；其他平台需要单独准备 Playwright Chromium，本轮未认证这些平台。准备依赖或浏览器可以联网，测试本身使用本地合成数据。生成的报告和截图留在本机且已忽略，CI 不上传它们。
 
-[VERIFICATION.md](docs/VERIFICATION.md)区分本轮实测、历史证据和未验证环境。测试验证合成场景，独立复审针对本轮修复，不能认证所有集成；拟议 GitHub Actions 矩阵尚未在 GitHub 运行。
+[VERIFICATION.md](docs/VERIFICATION.md)区分本轮实测、历史证据和未验证环境。测试验证合成场景，独立复审针对本轮修复，不能认证所有集成；首轮托管矩阵暴露了 Windows 文件校验差异；后续 PR 修正运行版本要求与合成临时根目录，实际结果见验证记录。
 
 ## 隐私和真实宿主
 
@@ -75,4 +75,4 @@ Windows 浏览器测试使用已安装 Edge；其他平台需要单独准备 Pla
 
 保留现有 [MIT](LICENSE)。[第三方说明](THIRD_PARTY.md)和[依赖许可清单](docs/DEPENDENCY-LICENSES.md)区分项目代码与开发工具的许可证。拟公开源码不包含竞品实现、字体文件、浏览器二进制或已安装依赖。既有来源审查未在所查范围发现明显直接复制，不是绝对原创证明。
 
-本轮在本地独立分支提交修复与公开文档，保留原九次提交；没有创建公共仓库、推送、PR、标签或发行包。是否公开仍等待所有者审阅明确文件与历史范围。
+获准源码已在 [Huamucuo/agent-progress-studio](https://github.com/Huamucuo/agent-progress-studio) 公开，保留原九次提交以及独立修复、公开文档提交。CI 兼容修正遵循分支、PR 与独立审查流程；仍未发布稳定标签、发行包或公共服务。

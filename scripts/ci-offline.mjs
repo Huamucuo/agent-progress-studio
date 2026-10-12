@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const repository = fileURLToPath(new URL('../', import.meta.url));
-const sandbox = await fs.mkdtemp(path.join(os.tmpdir(), 'aps-offline-tests-'));
+const sandbox = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'aps-offline-tests-')));
 const home = path.join(sandbox, 'home'), codexHome = path.join(home, '.codex');
 await fs.mkdir(codexHome, { recursive: true });
 await fs.writeFile(path.join(sandbox, 'empty.gitconfig'), '');

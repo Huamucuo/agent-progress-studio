@@ -1,6 +1,6 @@
 # Dependency and asset license inventory
 
-Checked on 2026-10-12 for the unchanged `0.1.1-rc.4` package/lockfile. Project implementation retains its existing MIT license. Recommendation: **keep MIT** for the implementation already covered by that license; do not relicense third-party components or erase their notices.
+Checked on 2026-10-12 for the unchanged third-party dependency graph of `0.1.1-rc.4`. The runtime range is corrected to `^22.17.0 || ^24.2.0`; package/lockfile dependency versions and notices are retained. Project implementation retains its existing MIT license. Recommendation: **keep MIT** for the implementation already covered by that license; do not relicense third-party components or erase their notices.
 
 ## Locked package graph
 
