@@ -1,5 +1,8 @@
 # Acceptance and evidence / 验收与证据
 
+> Historical development notes for 0.1.1-rc.4. These describe implementation intent or earlier observations; they do not certify current safety or host compatibility. The original baseline had five independent-review findings; the current branch implements fixes. Current review status and remaining limits are recorded below. Read [KNOWN-ISSUES.md](KNOWN-ISSUES.md) and [VERIFICATION.md](VERIFICATION.md) before using a real session.
+
+
 ## State rules
 
 | State | Required proof | Counts as accepted? |

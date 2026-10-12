@@ -1,5 +1,8 @@
 # 竞品公开资料审查 / Public competitor review
 
+> Historical development notes for 0.1.1-rc.4. These describe implementation intent or earlier observations; they do not certify current safety or host compatibility. The original baseline had five independent-review findings; the current branch implements fixes. Current review status and remaining limits are recorded below. Read [KNOWN-ISSUES.md](KNOWN-ISSUES.md) and [VERIFICATION.md](VERIFICATION.md) before using a real session.
+
+
 检索日期 / Retrieved: **2026-10-09**（Asia/Shanghai）。范围：指定官方仓库的 README、许可证正文与公开元数据；未安装或运行竞品。下列功能均为维护者公开声明，**不是本项目的实测结论**。通过 GitHub API 固定当日默认分支 HEAD，并读取对应提交的许可证正文；三个项目均为 MIT。
 
 Scope: official READMEs, license text and repository metadata only. Competitors were not installed or executed. Features below are **maintainer claims, not independently tested behavior**. Default-branch HEADs were pinned using GitHub's API, and license text was inspected at each revision. All three use MIT.

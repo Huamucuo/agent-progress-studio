@@ -1,5 +1,8 @@
 # Official interface research / 官方接口调研
 
+> Historical development notes for 0.1.1-rc.4. These describe implementation intent or earlier observations; they do not certify current safety or host compatibility. The original baseline had five independent-review findings; the current branch implements fixes. Current review status and remaining limits are recorded below. Read [KNOWN-ISSUES.md](KNOWN-ISSUES.md) and [VERIFICATION.md](VERIFICATION.md) before using a real session.
+
+
 Checked 2026-10-09. Public documentation describes capabilities; actual availability can differ by client version/account. Local probe: Codex CLI `0.162.0-alpha.2`; generated schema inspected locally, not vendored. No competitor source was copied or executed.
 
 ## Codex app-server

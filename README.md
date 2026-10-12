@@ -1,129 +1,94 @@
 # Agent Progress Studio
 
-**See the work. Inspect the evidence. Decide what is done.**
+**See agent activity. Inspect evidence. Keep completion claims honest.**
 
-[简体中文](README.zh-CN.md) · Version <!-- APS_VERSION -->0.1.1-rc.4<!-- /APS_VERSION --> · MIT · Local Codex + Work Hook experiment
+[简体中文](README.zh-CN.md) · <!-- APS_VERSION -->0.1.1-rc.4<!-- /APS_VERSION --> · [MIT](LICENSE) · **Development preview**
 
-An original, local browser dashboard for coding-agent observability. It separates an agent's activity and self-reported plan from verifiable acceptance conditions. No production dependencies, accounts, API keys, telemetry or cloud service.
+A local browser dashboard that separates an agent's reported plan, observed activity, and declared acceptance conditions. The runtime uses Node.js built-ins and local browser assets; it needs no account, API key, npm installation or build step.
 
-**Development branch: Work locally Hook experiment.** An optional, separately installed and trusted metadata probe now feeds the dashboard. It discovers session IDs and shows real lifecycle callbacks, tool names and explicit structured outcomes; product labels require user confirmation. Plans, tokens and acceptance remain unknown for this source. [Setup, actual host findings and removal](docs/WORK-HOOKS.md). Start with `start.cmd --work-hooks` after configuring the probe. The original V0.1.0 release ZIP remains unchanged.
+**Five boundary fixes are implemented on an independent branch.** An independent static review found no concrete source-backed bypass or regression within these five fixes. Start with synthetic data; real-host compatibility and manual acceptance remain unverified. Public source development is separate from a stable release. Read [known issues](docs/KNOWN-ISSUES.md).
 
-This candidate is held for incremental source/license review and user acceptance. The reported V0.1 audit approval applies only to the baseline and its original ZIP. [Candidate review scope](docs/INCREMENTAL-REVIEW.md).
+## Try the offline demo
 
-## Monitor a task
+The manifest declares **Node.js 22.15.0 or newer**. The fresh local checks use Node 24.17.0 on Windows x64; the minimum version, Linux and macOS have not been locally certified by this preparation.
 
-Use the **source and session selectors on the home page**. Codex logs and local Hook sessions refresh every two seconds while selected; new arrivals do not replace your selection. The first session arriving at an empty source is selected automatically. Activity is the last observed event, not a heartbeat: after 30 seconds without new activity evidence the running state becomes unknown. A Stop or completed turn does not prove the software task is finished.
-
-Three measures remain separate: **overall task progress** is unknown without a reliable remaining-work model; **plan progress** counts completed / reported steps; **acceptance pass rate** uses the weighted evidence rules below. Tool counts contribute to none of them. Tools and recent events precede the supporting Git, tests and acceptance views.
-
-Work monitoring is partial: task text, structured plans, tokens, exact context, workspace and task acceptance are not collected by this opt-in probe. Five event types were observed in the user's Windows Work locally tests; the first attempt at the later tool test had a host error, and retry produced PreToolUse, PostToolUse and Stop. See the measured boundary, not test totals, in [WORK-HOOKS](docs/WORK-HOOKS.md).
-
-Codex discovery lists UUIDs without reading log contents. Choose a known Codex session, then **Confirm Codex and allow content access**. This permits prompt/message/tool reading for that backend and ID. Workspace files, tests and Git require a separate explicit workspace grant. Unknown and Work sessions remain denied; a Hook product label alone grants no access. Revocation clears current content and evidence; permissions persist locally. [Exact scope and compatibility limits](docs/PRIVACY-SCOPE.md).
-
-
-RC4 migrates v1 labels without retaining body grants. Confirm the backend and full ID again. Revocation invalidates old generations, cached reports and subscriptions; detail/export responses pass the same browser gate. Clean restarts preserve scoped v2 permissions; unclean shutdowns require reconfirmation. Legacy mixed review files remain on disk but are not read automatically. See [RC4 changes and limits](docs/RC4-REMEDIATION.md).
-
-## Start on Windows
-
-1. Install **Node.js 22.15 or newer** and optionally Git. This release was tested on Windows with Node 24.17.0 and Microsoft Edge.
-2. Extract the release ZIP to a directory you own.
-3. Double-click **`start.cmd`**. It starts the local service and opens your default browser at `http://127.0.0.1:4317`.
-4. Keep the console open. Press **Ctrl+C** to stop. Double-click **`demo.cmd`** for an offline simulated task.
-
-No `npm install` is needed to run the application. Source files are the runnable distribution; no build step is required.
+From the source directory, run:
 
 ```powershell
-# Alternative: run without opening a browser automatically
-node src/server.mjs --demo
-
-# Observe a specific code workspace; choose its Codex session in Connections
-node src/server.mjs --workspace "C:\Projects\my-project"
-
-# A different Codex data directory or port
-start.cmd --codex-home "D:\CodexData" --port 4320
+node src/server.mjs --demo --codex-home ./work/synthetic-codex --data-dir ./work/demo-state
 ```
 
-Installation, custom data folders and removal: [Windows guide](docs/INSTALL.md).
-
-## What works in 0.1
-
-- Discover recent local UUID session candidates (product unknown until confirmed); prefer `CODEX_THREAD_ID` when supplied by the launching environment. Otherwise select a recent session explicitly.
-- Follow task phase, tools, recent events, reported plans and reported usage. Logs are polled every two seconds and snapshots arrive over SSE.
-- Optional loopback app-server WebSocket connection, with ID-only discovery of loaded threads and separately authorized history polling; no preview-bearing global thread listing. No start/resume/approval methods.
-- Six distinct acceptance states: implemented, auto-verified, awaiting human review, failed, unknown, human-accepted.
-- Inspect Git working changes, commits, implementation files and named test results in dialogs.
-- Record human accept/reject decisions locally. Decisions expire when the evidence or acceptance definition changes.
-- Export an authoritative JSON snapshot. Export can contain local paths, event excerpts and code evidence; choose where to share it yourself.
-- Chinese / English, dark / light, responsive layout, deterministic replay and a no-plan scenario.
-
-## Define acceptance for your project
-
-Create `.agent-progress/acceptance.json` **in the workspace you are observing**. See [the example](fixtures/acceptance.example.json).
-
-```json
-{
-  "version": 1,
-  "taskId": "input-validation-v1",
-  "criteria": [
-    {
-      "id": "input-validation",
-      "title": "Reject invalid input and pass the validation suite",
-      "files": ["src/validation.js"],
-      "checks": ["validation-tests"],
-      "weight": 1,
-      "requiresHuman": false
-    }
-  ]
-}
-```
-
-Existing files mean **implemented**, not verified. Supply a current `.agent-progress/results.json` with the named checks to establish automatic verification. See [report format and integration](docs/EVIDENCE.md). Set `requiresHuman: true` for a human gate.
-
-**Coverage = verified weight without a remaining human gate + human-accepted weight, divided by total declared weight.** Unknown, implemented, failed and awaiting-review conditions do not contribute. No criteria means **unknown progress**, even if all agent plan steps are marked completed. No ETA is invented.
-
-Run this project's own checks and generate its evidence report:
+Open `http://127.0.0.1:4317` in a browser. Keep the terminal open; Ctrl+C stops the service. For the Windows launcher and automatic browser opening:
 
 ```powershell
-npm test
-npm run verify
+demo.cmd --codex-home ./work/synthetic-codex --data-dir ./work/demo-state
+```
 
-# Optional browser development dependency; not needed to run the dashboard
+These explicit folders keep the demo separate from your normal Codex directory and permissions. Even demo mode discovers the configured local session directory for its connection list, so use the isolated directory above. The simulated data is clearly labeled. Do not point these paths at actual sessions or reuse a real permission store for a demonstration.
+
+Use `--port 4320` if the default port is occupied. No dependency installation is needed to run the dashboard. See [installation and removal](docs/INSTALL.md).
+
+## Implemented behavior and its limits
+
+| Area | What the code provides | Boundary |
+| --- | --- | --- |
+| Progress | Separate reported-plan fraction and weighted acceptance coverage; overall completion remains unknown without a reliable model. | Tool-call counts and a completed turn do not prove a finished task. |
+| Offline demo | Deterministic replay, no-plan scenario, evidence views, local review decisions and JSON export. | Simulation is not a live host. |
+| Codex JSONL | Bounded filename discovery, explicit selected-session content grants, appended-log normalization and polling. | Internal best-effort data format; no proof of foreground selection or complete history. |
+| Workspace evidence | File, test-report and Git views after a separate workspace grant. | Signature display and configured signature verification are disabled during evidence reads. A workspace grant remains distinct from session access. |
+| App-server | Literal-loopback endpoint, loaded-ID discovery and separately granted history; normalization of permitted delivered notifications. | No start/resume/approval commands; cross-client subscription is unverified. Experimental paging is off by default and requires explicit API opt-in; malformed input is rejected without committing partial state. |
+| Local Hook experiment | Separate opt-in recorder and metadata receiver; lifecycle events, tool name and explicit structured outcome when present. | No task text, plans, tokens or private tool payloads. The receiver checks resource identity before bounded reads and retains each poll's original grant. Host compatibility is not renewed here. |
+| Review and UI | Six acceptance states, evidence-linked human decisions, local persistence, bilingual themes, dialogs and local downloads. | Exports can contain private paths, source and task excerpts. Inspect them before sharing. |
+
+Activity expires to unknown after 30 seconds without new nonterminal evidence. Missing timestamps, plans, context occupancy and unsupported fields stay unknown. A Stop event describes a stopped turn. Local polling is normally every two seconds; no latency SLA is claimed.
+
+## Acceptance is explicit
+
+For a future reviewed real-workspace connection, acceptance definitions belong in that workspace's `.agent-progress/acceptance.json`. [The example](fixtures/acceptance.example.json) links named files, check IDs, weights and optional human gates. Merely finding a file means implemented, not tested.
+
+Automatic verification requires a current `.agent-progress/results.json` containing the named checks and matching source fingerprint. Human review expires when its evidence or definition changes. [Evidence format](docs/EVIDENCE.md) explains this producer contract; it is not a proof that a test producer is honest or that its coverage is complete.
+
+## Development checks
+
+Run the Node suites and new boundary regressions through an isolated environment:
+
+```powershell
+node scripts/ci-offline.mjs
+```
+
+The wrapper creates temporary synthetic homes, uses an empty developer Git configuration, and does not forward credentials, real session IDs or trace settings. The independent repair branch retains the original history, adds 23 boundary regressions, and updates only the scoped Git, Hook and RPC behavior.
+
+Optional browser checks use the locked Playwright development dependency:
+
+```powershell
 npm ci --ignore-scripts
-npm run test:browser
-npm run verify -- --browser
+node scripts/ci-offline.mjs --browser
 ```
 
-Browser tests use installed Edge on Windows. On other systems, install Playwright Chromium (`npx playwright install chromium`); these platforms are not release-certified. The browser script creates only temporary fixtures and local servers.
+On Windows the browser suite uses installed Edge. On other systems a separately installed Playwright Chromium is needed; those runs are not certified here. Provisioning the dependency/browser can use the network; fixtures and test servers are local. Generated reports/screenshots stay local and are ignored. The proposed CI installs no npm packages and uploads no artifacts.
 
-## Honest integration limits
+Fresh local results and historical evidence are separated in [VERIFICATION.md](docs/VERIFICATION.md). Tests cover synthetic cases; the independent review covers this exact fix and does not certify every integration. The proposed Actions matrix has not yet run on GitHub.
 
-Local JSONL is an **internal, best-effort format**. Only the newest 300 candidate files / 60 listed sessions are scanned; initial attachment reads at most the last 8 MiB. Truncation and malformed records are surfaced. The UI cannot know which unrelated desktop chat is foreground. A silent log cannot prove a tool is still running.
+## Privacy and compatibility
 
-The official [app-server](https://learn.chatgpt.com/docs/app-server) transport is experimental. `thread/read` reads stored state without resuming or subscribing; a separate app-server process is not a guaranteed live mirror of the desktop app. V0.1 accepts only `ws://127.0.0.1:PORT/`, without bearer authentication. Do not expose that listener remotely.
+The service binds to loopback, serves a fixed asset list and checks same-origin requests. These are application controls, not a sandbox against programs running as your user. Local session bodies, workspace evidence and Hook observation have distinct intended grants. Read [the scope design](docs/PRIVACY-SCOPE.md) together with [current limitations and remediation status](docs/KNOWN-ISSUES.md); do not infer a complete security guarantee from the design.
 
-Token totals and last-request usage are separate. Exact current context occupancy is unknown; the cumulative total is never subtracted from context capacity. Absent timestamps/fields stay unknown. Tests are not inferred from arbitrary console prose or command exit codes.
+The dashboard itself has no telemetry/upload flow or remote runtime assets. It does not alter the native Codex/Work UI or automatically install/trust the optional Hook plugin. No real Work or Codex session was opened by this publication preparation. Real-host version compatibility and manual acceptance remain pending.
 
-The dashboard does not change native Work/Codex UI, automatically install Hooks, edit Codex settings, run commands from observed logs, or upload data. The optional Work locally metadata experiment needs separate installation and trust; MCP Apps remain future work.
+## Build in public
 
-Hook records contain four base fields; current PreToolUse/PostToolUse records add the two authorized tool fields (six total). Legacy four-field tool records remain accepted. [Field sources and examples](docs/WORK-HOOKS.md#data-path-and-interpretation--数据路径与含义).
+[ROADMAP.md](ROADMAP.md) tracks proposed work; [CHANGELOG.md](CHANGELOG.md) describes recorded changes. [CONTRIBUTING.md](CONTRIBUTING.md) and [the development procedure](docs/DEVELOPMENT.md) cover feature branches, independent PR review, protected main, immutable prereleases and stable-release gates. Existing commits and authors must be preserved; this local source snapshot is not a replacement Git history.
 
-## Project map
+The project already carries MIT. [THIRD_PARTY.md](THIRD_PARTY.md) and [the dependency inventory](docs/DEPENDENCY-LICENSES.md) distinguish that license from optional development-tool licenses. No competitor implementation, fonts, browser binaries or installed dependencies are included in this proposed source set. The provenance review found no obvious direct copying in the inspected scope; it does not prove universal originality.
 
 ```text
-src/adapters/     Codex JSONL, app-server, reproducible simulation, future host contract
-src/collectors/   Confined file, Git and report evidence
-src/core/         Pure task reducer and acceptance engine
-src/service.mjs   Source lifecycle, authoritative snapshots, durable human reviews
-src/server.mjs    Loopback HTTP/SSE and origin protection
-public/          Reusable DOM components, bilingual UI, themes
-tests/           Unit, integration and real-browser tests
-scripts/         Windows launcher and evidence-producing verification runner
-fixtures/        Original example reports / session data
-docs/            Architecture, research, installation, evidence format, release QA
+src/          adapters, authority, evidence and local HTTP/SSE service
+public/       local UI modules, CSS and original SVG logo
+fixtures/     authored synthetic reports and example session records
+tests/        original unit, integration and browser suites
+scripts/      launch, verification, version and candidate tooling
+experiments/  separately installed optional metadata Hook
+docs/         architecture, limitations, verification and development records
 ```
 
-[Architecture](docs/ARCHITECTURE.md) · [Official interface research](docs/INTEGRATIONS.md) · [Competitor differences](docs/COMPETITORS.md) · [Release verification](docs/VERIFICATION.md) · [V0.2 plan](docs/V0.2.md)
-
-All implementation code and UI were written for this project. Competitor research used public documentation and licenses, without importing competitor source. The project is ready to place in a repository; this local delivery does not itself publish a public GitHub repository.
-
-Contributions: read [CONTRIBUTING.md](CONTRIBUTING.md). License: [MIT](LICENSE). Development dependency notices: [THIRD_PARTY.md](THIRD_PARTY.md).
+This preparation creates a local repair branch and commits while preserving all nine original commits. It does not create a public repository, push history, open a PR, issue a tag or publish a release. Publication still requires the owner's review of the exact file and history scope.

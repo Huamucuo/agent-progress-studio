@@ -1,5 +1,8 @@
 # RC4 implementation record
 
+> Historical development notes for 0.1.1-rc.4. These describe implementation intent or earlier observations; they do not certify current safety or host compatibility. The original baseline had five independent-review findings; the current branch implements fixes. Current review status and remaining limits are recorded below. Read [KNOWN-ISSUES.md](KNOWN-ISSUES.md) and [VERIFICATION.md](VERIFICATION.md) before using a real session.
+
+
 Approved baseline: `be9372f3219dbed6b8c6cd8735dba3163337dbcf`.
 Approved plan SHA256: `8ca79e3f7547012db431184bf14976b58bb3a526b5653f740b2fe127b49edaa5`.
 Development branch: `repair-rc4-access-rpc`. No public release is authorized.

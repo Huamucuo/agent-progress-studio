@@ -1,5 +1,8 @@
 # Agent Progress Studio implementation plan
 
+> Historical development notes for 0.1.1-rc.4. These describe implementation intent or earlier observations; they do not certify current safety or host compatibility. The original baseline had five independent-review findings; the current branch implements fixes. Current review status and remaining limits are recorded below. Read [KNOWN-ISSUES.md](KNOWN-ISSUES.md) and [VERIFICATION.md](VERIFICATION.md) before using a real session.
+
+
 **Goal:** ship a usable, evidence-based local Codex dashboard on Windows.
 **Architecture:** collectors -> normalized task engine + evidence evaluator -> local snapshot API/SSE -> reusable UI modules. Future host adapters use the same contract.
 **Spec:** [SPEC.md](SPEC.md)
