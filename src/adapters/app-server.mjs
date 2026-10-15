@@ -10,7 +10,7 @@ export function validateEndpoint(value) {
 }
 const notifications = new Set(['turn/started', 'turn/completed', 'turn/plan/updated', 'thread/tokenUsage/updated', 'thread/status/changed', 'item/started', 'item/completed']);
 const optOut = ['thread/started', 'thread/name/updated', 'item/agentMessage/delta', 'item/plan/delta', 'item/reasoning/summaryTextDelta', 'item/reasoning/textDelta', 'item/reasoning/summaryPartAdded', 'item/commandExecution/outputDelta', 'item/fileChange/outputDelta', 'item/mcpToolCall/progress', 'turn/diff/updated', 'error'];
-const experimentalMethods = new Set(['thread/turns/list', 'thread/items/list']);
+const experimentalMethods = new Set(['thread/turns/list', 'thread/items/list','thread/backgroundTerminals/list']);
 const object = value => !!value && typeof value === 'object' && !Array.isArray(value);
 function historyTurn(turn) {
   if (!object(turn) || !sessionKey(turn.id) || !Array.isArray(turn.items) || turn.items.some(item => !object(item))
@@ -57,7 +57,7 @@ export class AppServerSource {
           if (ids?.type !== 'array' || ids.values.length > 1000 || ids.values.some(n => n.type !== 'string' || !sessionKey(wire.scalar(n)))) return reject('Invalid ID-only discovery result');
           if ([...node.fields.keys()].some(k => !['data', 'nextCursor'].includes(k))) return reject('Unexpected discovery payload');
         }
-        const result = wire.parse(node); clearTimeout(pending.timeout); this.pending.delete(wire.requestKey); pending.resolve(result);
+        const result = pending.project?pending.project(wire):wire.parse(node);if(pending.permit)this.access.check(pending.permit); clearTimeout(pending.timeout); this.pending.delete(wire.requestKey); pending.resolve(result);
         return;
       }
       if (!channel || !this.live(channel) || !channel.permit || !notifications.has(wire.method)) return;
@@ -103,17 +103,17 @@ export class AppServerSource {
       await this.discover(); return this.sessions;
     } catch (e) { this.disconnect(); throw e; }
   }
-  request(method, params) {
-    if (!['initialize', 'thread/loaded/list', 'thread/read', 'thread/turns/list', 'thread/items/list'].includes(method)) return Promise.reject(new Error('Read-only adapter denied method'));
+  request(method, params,project) {
+    if (!['initialize', 'thread/loaded/list', 'thread/read', 'thread/turns/list', 'thread/items/list','thread/backgroundTerminals/list'].includes(method)) return Promise.reject(new Error('Read-only adapter denied method'));
     const channel = this.channel;
     if (experimentalMethods.has(method) && !channel?.experimentalApi) return Promise.reject(Object.assign(new Error('UNSUPPORTED: EXPERIMENTAL_API_DISABLED'), { code: 'EXPERIMENTAL_API_DISABLED' }));
     if (!channel || !this.live(channel)) return Promise.reject(new Error('No current RPC channel'));
-    const content = ['thread/read', 'thread/turns/list', 'thread/items/list'].includes(method), id = content ? sessionKey(params?.threadId) : null;
+    const content = ['thread/read', 'thread/turns/list', 'thread/items/list','thread/backgroundTerminals/list'].includes(method), id = content ? sessionKey(params?.threadId) : null;
     if (content && (!id || id !== channel.id || !channel.permit || !this.allowed())) return Promise.reject(new Error('Session content is not authorized'));
     const requestId = `${channel.connection}:${++this.seq}`, key = 's:' + requestId;
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => { this.pending.delete(key); reject(new Error(`${method} timed out`)); }, this.timeoutMs);
-      this.pending.set(key, { resolve, reject, timeout, method, id, channel, permit: content ? channel.permit : null });
+      this.pending.set(key, { resolve, reject, timeout, method, id, channel, project,permit: content ? channel.permit : null });
       try { this.socket.send(JSON.stringify({ id: requestId, method, params })); } catch { clearTimeout(timeout); this.pending.delete(key); reject(new Error('RPC send failed')); }
     });
   }

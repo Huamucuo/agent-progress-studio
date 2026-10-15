@@ -1,8 +1,5 @@
 # Work locally lifecycle Hook experiment / 本地 Work 最小接入实验
 
-> Historical development notes for 0.1.1-rc.4. These describe implementation intent or earlier observations; they do not certify current safety or host compatibility. The original baseline had five independent-review findings; the current branch implements fixes. Current review status and remaining limits are recorded below. Read [KNOWN-ISSUES.md](KNOWN-ISSUES.md) and [VERIFICATION.md](VERIFICATION.md) before using a real session.
-
-
 This is a metadata feasibility extension to V0.1.0, not a full Work task adapter or a V0.2 release. Existing Codex JSONL and app-server adapters remain available. No competitor code was imported for this change.
 
 本轮优先验证本地 Work 真实事件，并把指定会话监控置于首页核心；不实现 MCP App，不修改 Work/Codex 原生界面，也不接入 Work Cloud。

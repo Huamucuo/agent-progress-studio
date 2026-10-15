@@ -34,11 +34,11 @@ export function reduceEvent(state, event) {
     s.phase = e.phase || 'unknown';
     s.turnId = e.metadata?.turn_id ?? null;
   }
-  if (e.kind === 'plan') s.plan = (Array.isArray(e.plan) ? e.plan : []).slice(0, 100).map(p => ({ step: safeText(p.step, 500), status: ['pending', 'inProgress', 'completed'].includes(p.status) ? p.status : 'unknown' }));
+  if (e.kind === 'plan') s.plan = (Array.isArray(e.plan) ? e.plan : []).slice(0, 100).map(p => ({ step: safeText(p.step, 500), status: ['pending', 'inProgress', 'completed','failed'].includes(p.status) ? p.status : 'unknown' }));
   if (e.kind === 'tool') {
     const id = e.toolId || e.id;
     const previous = state.tools.find(t => t.id === id);
-    const tool = { ...previous, id, name: e.name || previous?.name || 'tool', status: e.status || 'unknown', at: e.at, text: e.text, exitCode: e.exitCode ?? null };
+    const tool = { ...previous, id, name: e.name || previous?.name || 'tool', status: e.status || 'unknown', at: e.at, text: e.text, command:typeof e.command==='string'?safeText(e.command,2000):previous?.command??null, exitCode: e.exitCode ?? null };
     s.tools = [...state.tools.filter(t => t.id !== id), tool].slice(-40);
   }
   if (e.kind === 'usage') {
@@ -50,7 +50,7 @@ export function reduceEvent(state, event) {
 
 /** Three different questions: no observed count is a model of total remaining work. */
 export function progressSummary(task, acceptance) {
-  const plan = { completed: 0, total: task.plan.length, inProgress: 0, pending: 0, unknown: 0 };
+  const plan = { completed: 0, total: task.plan.length, inProgress: 0, pending: 0, failed:0, unknown: 0 };
   for (const step of task.plan) plan[step.status]++;
   plan.percent = plan.total ? Math.round(plan.completed / plan.total * 1000) / 10 : null;
   return { overall: { percent: null }, plan, acceptance: { percent: acceptance.percent, met: acceptance.met, total: acceptance.total } };
@@ -87,6 +87,6 @@ export function monitorTask(task, { now = Date.now(), connected = true, mode = '
   const terminal = ['turn_completed', 'turn_interrupted', 'turn_failed', 'turn_stopped'].includes(status);
   const observedStatus = status;
   if (!connected) status = 'source_unavailable';
-  else if (activity && !fresh && !terminal) status = 'no_recent_evidence';
+  else if (activity && !fresh && !terminal) status = activity.kind==='tool'&&activity.toolId&&task.tools.find(t=>t.id===activity.toolId)?.status==='inProgress'?'awaiting_tool_result':'no_recent_evidence';
   return { status, observedStatus, toolName, outcome, at, fresh, staleAfterMs: 30000 };
 }

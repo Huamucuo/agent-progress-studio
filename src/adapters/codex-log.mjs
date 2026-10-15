@@ -7,7 +7,7 @@ import { canonicalUuid, filenameSessionId } from '../core/session-access.mjs';
 import { normalizeRecord } from './normalize.mjs';
 
 /** Filename/stat discovery only. Even an empty exclusion set never opens logs. */
-export async function discoverSessions(codexHome, limit = 60, excludedIds = new Set()) {
+export async function discoverSessions(codexHome, limit = 60, excludedIds = new Set(), priorityId) {
   const excluded = new Set([...excludedIds].map(canonicalUuid).filter(Boolean)), files = [];
   async function walk(dir, depth) {
     if (depth > 4 || files.length >= 300) return;
@@ -26,6 +26,27 @@ export async function discoverSessions(codexHome, limit = 60, excludedIds = new 
   }
   await walk(path.join(codexHome, 'sessions'), 0);
   await walk(path.join(codexHome, 'archived_sessions'), 0);
+  // A selected old task can still be active after newer directories exhaust
+  // ordinary discovery. Resolve only its filename, never its body. Scan both
+  // stores to reject duplicate UUID aliases; an incomplete scan defaults deny.
+  const priority=canonicalUuid(priorityId),matches=[];let examined=0,incomplete=false;
+  async function locate(dir,depth){
+    if(incomplete)return;if(depth>4){incomplete=true;return;}
+    let entries;try{entries=await readdir(dir,{withFileTypes:true});}catch(e){if(e.code!=='ENOENT')incomplete=true;return;}
+    for(const entry of entries){
+      if(++examined>10000){incomplete=true;return;}
+      if(entry.isSymbolicLink())continue;
+      const file=path.join(dir,entry.name);
+      if(entry.isDirectory())await locate(file,depth+1);
+      else if(entry.isFile()&&filenameSessionId(entry.name)===priority)matches.push({id:priority,path:file});
+      if(incomplete)return;
+    }
+  }
+  if(priority&&!excluded.has(priority)){
+    await locate(path.join(codexHome,'sessions'),0);await locate(path.join(codexHome,'archived_sessions'),0);
+    for(let i=files.length-1;i>=0;i--)if(files[i].id===priority)files.splice(i,1);
+    if(!incomplete&&matches.length===1)files.push(matches[0]);
+  }
   const sessions = [];
   for (const file of files) {
     try {
@@ -34,7 +55,9 @@ export async function discoverSessions(codexHome, limit = 60, excludedIds = new 
     } catch { /* Removed candidates contain no readable state. */ }
   }
   const counts = new Map(); for (const s of sessions) counts.set(s.id, (counts.get(s.id) || 0) + 1);
-  return sessions.filter(s => counts.get(s.id) === 1).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, limit);
+  const unique=sessions.filter(s=>counts.get(s.id)===1).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)),recent=unique.slice(0,limit),selected=priority&&unique.find(s=>s.id===priority);
+  if(selected&&!recent.some(s=>s.id===priority))recent.push(selected);
+  return recent;
 }
 
 export class LogSource {

@@ -1,4 +1,5 @@
 const en = {
+  awaiting_tool_result:'Continuing observation · awaiting tool result',
   contentDenied:'Session content access is off', contentDeniedDetail:'Discovery reads names and file metadata only. A product label alone grants no content access. Work content remains excluded.', allowContent:'Confirm Codex and allow content access',
   allowContentDetail:'Confirm this backend and full ID belong to your Codex session. Allow local prompt/message/tool reading and local export for this scope. Workspace evidence requires separate permission. Do not authorize Work or an unidentified session.', allowContentConfirm:'This is my Codex session; allow reading',
   contentGranted:'Codex session content authorized', contentGrantedDetail:'Permission is saved locally for this ID. Revoke to clear monitored content and evidence. Files already exported are not deleted.', revokeContent:'Revoke content access',
@@ -41,6 +42,7 @@ const en = {
   overallProgress:'Overall task progress', overallHint:'Unknown: no reliable model of all remaining work. Plan steps and acceptance are separate measures.', planProgress:'Reported plan steps', planProgressHint:'Completed / reported steps. These are agent claims, not verified deliverables.', hookToolsHint:'Separate callbacks; concurrent calls are not paired without a call ID.', started:'Start observed', succeeded:'Success reported'
 };
 const zh = {
+  awaiting_tool_result:'持续监测中 · 等待工具结束记录',
   contentDenied:'会话正文读取已关闭', contentDeniedDetail:'发现会话仅检查文件名和文件信息。来源标签不等于正文授权；Work 正文保持排除。', allowContent:'确认是 Codex 并授权读取正文',
   allowContentDetail:'请核对后端和完整 ID，确认是你的 Codex 会话。允许本地读取该范围的提示词、消息、工具记录并纳入本地导出；工程证据需要单独授权。请勿授权 Work 或无法确认来源的会话。', allowContentConfirm:'这是我的 Codex 会话，允许读取',
   contentGranted:'已授权读取此 Codex 会话正文', contentGrantedDetail:'授权按会话 ID 保存在本机。撤销后清空当前正文和证据；不会删除已经导出的文件。', revokeContent:'撤销正文读取授权',
@@ -79,7 +81,7 @@ const zh = {
   exportHint:'本地 JSON 报告可能包含路径、事件摘录与代码证据。', liveStale:'最近事件距今超过 30 秒，工具状态可能已过期。', weightUnit:'权重', readonly:'只读', privacy:'隐私', privacyDetail:'仅监听 127.0.0.1，无统计上报、外部资源、API 密钥或自动上传。报告与验收决定保留在本机。',
   fileError:'无法读取证据', connecting:'正在连接…', planSteps:'项已报告步骤', docs:'含源代码与完整文档', success:'已完成', transportError:'本地服务不可用，请保持启动窗口运行。',
   agentStatus:'AGENT · 最近观测到的活动', selectedTask:'指定会话', autoDiscoverHint:'当前来源自动刷新；新会话加入列表，保持你已选中的任务。', unlistedSession:'已不在发现列表',
-  tool_running:'已观测到工具开始执行', turn_running:'已观测到回合执行', prompt_received:'已收到请求 · 等待执行证据', tool_finished:'已观测到工具返回', tool_failed:'工具报告失败', turn_stopped:'最近回合已停止', turn_completed:'最近回合已结束', turn_interrupted:'最近回合已中断', turn_failed:'最近回合失败', session_seen:'已发现会话', waiting_event:'等待活动事件', no_recent_evidence:'当前活动未知 · 最近证据已过期', source_unavailable:'尚未确认来源连接', feed_unavailable:'实时更新已断开 · 当前活动未知',
+  tool_running:'已观测到工具开始执行', turn_running:'已观测到回合执行', prompt_received:'已收到请求 · 等待执行证据', tool_finished:'已观测到工具返回', tool_failed:'工具报告失败', turn_stopped:'最近回合已停止', turn_completed:'最近回合已结束', turn_interrupted:'最近回合已中断', turn_failed:'最近回合失败', session_seen:'已发现会话', waiting_event:'等待活动事件', no_recent_evidence:'持续监测中 · 暂无新活动证据', source_unavailable:'尚未确认来源连接', feed_unavailable:'实时更新已断开 · 当前活动未知',
   latestTool:'最近观测工具', currentStep:'报告的当前步骤', observedActivityAt:'观测时间', workContentUnknown:'任务内容和计划未采集，保持未知。', noActivityDetail:'来源尚未报告更具体的活动。', observationHint:'事件是一次观测，不是存活心跳。30 秒没有新的活动证据时，运行状态变为未知。回合结束不等于任务验收通过。',
   overallProgress:'任务总体进度', overallHint:'未知：缺少全部剩余工作的可靠模型。计划步骤与验收分别计算。', planProgress:'计划步骤进度', planProgressHint:'已完成 / 已报告步骤；这是 Agent 的报告，不是交付验证。', hookToolsHint:'分别展示回调；未采集调用 ID，不推测并发工具的配对。', started:'已观测开始', succeeded:'明确报告成功'
 };

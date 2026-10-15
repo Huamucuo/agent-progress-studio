@@ -1,94 +1,59 @@
-# Agent Progress Studio
+# Agent Progress Studio — Windows Desktop Edition
 
-**See agent activity. Inspect evidence. Keep completion claims honest.**
+[简体中文](README.zh-CN.md) · <!-- APS_VERSION -->0.3.0-desktop.1<!-- /APS_VERSION --> · MIT
 
-[简体中文](README.zh-CN.md) · <!-- APS_VERSION -->0.1.1-rc.4<!-- /APS_VERSION --> · [MIT](LICENSE) · **Development preview**
+A private local desktop monitor for AI coding tasks. Open a Windows window, select a specific Work/Codex session, see observed activity and recent tools, and inspect verified and pending work. This candidate is awaiting independent source, security and package audit. It has not been publicly released.
 
-A local browser dashboard that separates an agent's reported plan, observed activity, and declared acceptance conditions. The runtime uses Node.js built-ins and local browser assets; it needs no account, API key, npm installation or build step.
+## Install and open
 
-**Five boundary fixes are implemented on an independent branch.** An independent static review found no concrete source-backed bypass or regression within these five fixes. Start with synthetic data; real-host compatibility and manual acceptance remain unverified. Public source development is separate from a stable release. Read [known issues](docs/KNOWN-ISSUES.md).
+- **Installer:** run `AgentProgressStudio-0.3.0-desktop.1-Setup.exe`, choose a per-user directory, then open Agent Progress Studio from the desktop/Start menu.
+- **Portable:** extract the entire `AgentProgressStudio-0.3.0-desktop.1-Portable.zip`, then double-click `AgentProgressStudio.exe`. Keep the accompanying resources and DLLs.
+- End users need **no browser, Node.js, npm, terminal or manual local service**. Electron includes the runtime. Candidate binaries are unsigned; verify the supplied SHA256.
 
-## Try the offline demo
+[Installation, connection, pause, tray, startup, logs and uninstall guide](docs/desktop/USER-GUIDE.md).
 
-The manifest declares **Node.js 22.x from 22.17.0, or 24.x from 24.2.0** (`^22.17.0 || ^24.2.0`). Node 23 and earlier Node 24 releases are excluded because they lack the cited Windows metadata fixes. Other major versions are not declared supported. The fresh local checks use Node 24.17.0 on Windows x64; the minimum versions, Linux and macOS have not been locally certified by this preparation. Hosted results are recorded separately below.
+## What the first screen means
 
-From the source directory, run:
+Choose a source and a task from the named/numbered list; the full ID remains available in advanced information. The first screen shows the selected identity, observed activity, recent tools, verified criteria and pending criteria. Collection being available does not mean an Agent is running. Stop ends a turn, not a project. Continuous observation continues when no new event arrives: a known unfinished tool awaits its corresponding result; other old evidence leaves current execution unknown.
 
-```powershell
-node src/server.mjs --demo --codex-home ./work/synthetic-codex --data-dir ./work/demo-state
-```
+The native floating monitor can be dragged/resized, compacted, hidden and restored. Drag release near any screen edge docks it: a 2 × 24 DIP visible cue reveals a small APS tag (28 × 44 DIP on vertical edges) when the pointer approaches, then a single click opens the inward drawer. The OS drawing/hit region excludes the unused backing frame, so it cannot block other windows. Leaving returns to the thin edge. Hover width is never restored from saved settings. Position lock, always-on-top and pinned expansion are independent. The flush edge is fully invisible and click-through at rest, 50% opaque nearby, and 100% opaque after clicking to expand. The underlying desktop is genuinely visible; this is native window alpha, not a faded opaque background. This native three-stage policy replaces saved legacy drawer opacity. Tray and Ctrl+Alt+Shift+A restore the monitor; messages attach to its visible region and follow movement, collapse, preview and expansion; old fixed-corner preferences cannot detach them. An expanded drawer puts the dashboard above bounded authorized messages and the controlled reply composer. Public user/assistant messages require the existing Codex body permission; unsupported Work chat is explicit. Messages update while typing without resetting the draft. Bilingual deterministic explanations distinguish observed facts from inferred implications; no paid model/API is required.
 
-Open `http://127.0.0.1:4317` in a browser. Keep the terminal open; Ctrl+C stops the service. For the Windows launcher and automatic browser opening:
+Three measures stay separate: overall task progress is UNKNOWN without a reliable remaining-work model; plan progress counts Agent-reported steps; acceptance percentage uses explicit conditions and weights. Tool-call counts are never a completion percentage. Missing plans, tokens, context and timestamps remain unknown; no invented ETA.
 
-```powershell
-demo.cmd --codex-home ./work/synthetic-codex --data-dir ./work/demo-state
-```
+## Connect Work or Codex
 
-These explicit folders keep the demo separate from your normal Codex directory and permissions. Even demo mode discovers the configured local session directory for its connection list, so use the isolated directory above. The simulated data is clearly labeled. Do not point these paths at actual sessions or reuse a real permission store for a demonstration.
+Optional **Desktop pet** is off by default. Four pixel animals have six four-frame states in a separate transparent window, with body dragging, size, independent position lock/top, hide and tray restore. Blank pixels pass clicks through; hidden pets stop animating. Authorized facts drive state, while expired or unknown activity leaves them idle. Local XP/coins, five usable shop items and PNG pack import never affect task progress or shutdown. [Pet guide and local storage](docs/desktop/DESKTOP_PETS.md) · [Artwork origin and licensing](docs/PET_RESOURCE_LICENSES.md).
 
-Use `--port 4320` if the default port is occupied. No dependency installation is needed to run the dashboard. See [installation and removal](docs/INSTALL.md).
+First launch opens a connection guide. Work observation is an **optional metadata-only Hook adapter**. Installation needs a native checkbox confirmation and official local plugin commands; trust is a separate client action. Installed, trusted and actually observed states are distinct. New session IDs appear when real callbacks arrive, while the selected session stays stable. Confirm Work/Codex origin separately; unknown stays unknown. Existing independent probes may be connected with a native directory picker.
 
-## Implemented behavior and its limits
+Hook records have four base fields: event_type, session_id, turn_id, timestamp. Tool events add tool_name and tool_status (six fields). No prompts, transcript bodies, tool arguments/output or hidden reasoning are persisted. Work plans, task text, token use and evidence roots are not provided by this adapter and stay UNKNOWN. Automated fixtures are not host compatibility certification. [Metadata protocol and prior host experiment](docs/WORK-HOOKS.md).
 
-| Area | What the code provides | Boundary |
-| --- | --- | --- |
-| Progress | Separate reported-plan fraction and weighted acceptance coverage; overall completion remains unknown without a reliable model. | Tool-call counts and a completed turn do not prove a finished task. |
-| Offline demo | Deterministic replay, no-plan scenario, evidence views, local review decisions and JSON export. | Simulation is not a live host. |
-| Codex JSONL | Bounded filename discovery, explicit selected-session content grants, appended-log normalization and polling. | Internal best-effort data format; no proof of foreground selection or complete history. |
-| Workspace evidence | File, test-report and Git views after a separate workspace grant. | Signature display and configured signature verification are disabled during evidence reads. A workspace grant remains distinct from session access. |
-| App-server | Literal-loopback endpoint, loaded-ID discovery and separately granted history; normalization of permitted delivered notifications. | No start/resume/approval commands; cross-client subscription is unverified. Experimental paging is off by default and requires explicit API opt-in; malformed input is rejected without committing partial state. |
-| Local Hook experiment | Separate opt-in recorder and metadata receiver; lifecycle events, tool name and explicit structured outcome when present. | No task text, plans, tokens or private tool payloads. The receiver checks resource identity before bounded reads and retains each poll's original grant. Host compatibility is not renewed here. |
-| Review and UI | Six acceptance states, evidence-linked human decisions, local persistence, bilingual themes, dialogs and local downloads. | Exports can contain private paths, source and task excerpts. Inspect them before sharing. |
+Codex discovery reads filename UUID metadata only. An explicitly selected older UUID is located separately when it falls outside the recent 300-candidate/60-row view, then retained in the list. Its scan is bounded at 10,000 directory entries; duplicates, inaccessible/incomplete scans and known Work IDs default to unavailable, with no body read. Reading a particular backend/ID body requires explicit confirmation that it is Codex, remembered after clean exit. Git/tests/implementation evidence require a separate workspace grant. Work/unknown bodies default to denied. The advanced page retains official loopback app-server monitoring and negotiated ID-only discovery. Sidebar replies have a **separate, default-off permission**, for a selected authorized local Codex thread loaded in the official control interface; no resume, model, sandbox or approval overrides. Work replies are unsupported. [Permission rules](docs/PRIVACY-SCOPE.md).
 
-Activity expires to unknown after 30 seconds without new nonterminal evidence. Missing timestamps, plans, context occupancy and unsupported fields stay unknown. A Stop event describes a stopped turn. Local polling is normally every two seconds; no latency SLA is claimed.
+Current real-host evidence: a user-selected, explicitly authorized existing Codex task was displayed in native main/floating windows. The experimental desktop Hook plugin's five definitions were trusted, but its new spool received **zero real callbacks**; this does not establish a working Work connection. The host's official local control socket was unavailable, so real sidebar delivery and unattended shutdown are not verified. Synthetic native/packaged tests are labeled separately in the handoff.
 
-## Acceptance is explicit
+## Desktop lifecycle and privacy
 
-For a future reviewed real-workspace connection, acceptance definitions belong in that workspace's `.agent-progress/acceptance.json`. [The example](fixtures/acceptance.example.json) links named files, check IDs, weights and optional human gates. Merely finding a file means implemented, not tested.
+Closing the floating window hides it; monitoring while hidden is configurable. Closing the main window hides it while a floating monitor or enabled tray background remains, otherwise quits. Explicit Quit stops owned collectors and flushes authorization. Pause invalidates subscriptions/UI; resume uses a fresh authority instance and retains selection. Login startup defaults off. Duplicate launches focus the same profile's window. Errors safely pause and offer reload, fixed-code logs or quit.
 
-Automatic verification requires a current `.agent-progress/results.json` containing the named checks and matching source fingerprint. Human review expires when its evidence or definition changes. [Evidence format](docs/EVIDENCE.md) explains this producer contract; it is not a proof that a test producer is honest or that its coverage is complete.
+Daily automatic cleanup covers this app's Chromium caches only and reports its result. Managed Hook retention bounds its own event namespace at 8,000 records; independent probes and transcripts are untouched. Automatic shutdown defaults to all **monitored, authorized tasks in the current source**, requires initial native opt-in, fresh official idle/background evidence and ended execution, then a stability interval/countdown with cancellation. It never asks again after completion and never treats project progress, silence or Stop alone as completion. Unknown background state blocks it; enablement never persists across restart. It cannot cover unconnected applications or cloud tasks.
 
-## Development checks
+The renderer has no Node access. Packaged assets use a secure custom origin, a sandboxed/context-isolated preload and a fixed IPC allowlist. The existing unified permission gateway governs reads, evidence, caching and final IPC/export publication. The desktop opens **no HTTP/SSE service**. Managed Hooks use an authenticated local Windows named pipe tied to the live observation generation; quitting/revocation stops its writes. Independent probes remain independently managed. No application code uploads user chats, code or logs. [Desktop architecture and boundaries](docs/desktop/IMPLEMENTATION.md).
 
-Run the Node suites and new boundary regressions through an isolated environment:
+A native report picker exports a current, authorized JSON report. Revoke clears live data and invalidates old delayed output; already-saved reports remain user-owned files. Uninstall the app-owned Hook in Settings and disable startup before removing/moving the application. Windows uninstall retains dedicated user data for user-directed cleanup.
 
-```powershell
-node scripts/ci-offline.mjs
-```
+## Evidence and acceptance
 
-The wrapper creates temporary synthetic homes, uses an empty developer Git configuration, and does not forward credentials, real session IDs or trace settings. The independent repair branch retains the original history, adds 23 boundary regressions, and updates only the scoped Git, Hook and RPC behavior.
+Keep `.agent-progress/acceptance.json` in an authorized workspace. [Original example](fixtures/acceptance.example.json) and [format](docs/EVIDENCE.md) define implementation files, named tests, weights and human approval. Git differences/commits, test reports, implementation checks and durable reviews remain available. Changed evidence invalidates old approval. Chinese/English and dark/light settings persist. Demo is explicitly labeled simulated and can replay, pause and step.
 
-Optional browser checks use the locked Playwright development dependency:
+## Source and development
 
-```powershell
-npm ci --ignore-scripts
-node scripts/ci-offline.mjs --browser
-```
+Baseline RC4: `e02febd5184ee679372c779e1c1c07214dec8358`; fixed desktop .1: `cce2640e7a4b4d8ecdf45ceab03bbcfc67188594`; fixed desktop .2: `bf10664b4aa353f2b6912efb7de9069dbd84ecdd`; this increment starts at fixed desktop .3 `67823146adfa880e22e4471ce08a7814cfe2a75a` on `feature/desktop-pet-mode`. Project-owned security repair `0719924a42805627c3c34694241dce59b0cb1465` was imported with its original authorship/history before desktop work. Fixed versions remain unchanged; this candidate has not passed Work B's independent audit.
 
-On Windows the browser suite uses installed Edge. On other systems a separately installed Playwright Chromium is needed; those runs are not certified here. Provisioning the dependency/browser can use the network; fixtures and test servers are local. Generated reports/screenshots stay local and are ignored. The proposed CI installs no npm packages and uploads no artifacts.
+Windows build environment: Node >=22.17, `npm ci`, then `npm start`. End-user releases include their runtime. `npm test`, `npm run test:browser` and `npm run test:desktop` reproduce regression. `npm run desktop:build` creates the per-user NSIS installer without publishing. `npm run desktop:unpacked` builds the runtime folder. See the guide for the isolated packaged/no-Node suite. The developer-only legacy web entry remains via `npm run web:start` / `web:demo`.
 
-Fresh local results and historical evidence are separated in [VERIFICATION.md](docs/VERIFICATION.md). Tests cover synthetic cases; the independent review covers this exact fix and does not certify every integration. The first hosted matrix exposed Windows filesystem validation differences; a follow-up PR corrects the runtime minimum and synthetic temporary-root setup. See the linked verification record for actual results.
+`desktop/`: native lifecycle/IPC/setup; `src/service.mjs`: source and authorization; `src/core/`: state and permissions; `src/adapters/`: Work, Codex, RPC and Demo; `src/collectors/`: evidence gateway; `public/`: reusable bilingual UI; `tests/`: synthetic unit/browser/native/package regression.
 
-## Privacy and compatibility
+[Architecture](docs/ARCHITECTURE.md) · [Security repair](docs/SECURITY-FIX-NOTES.md) · [Competitor comparison](docs/COMPETITORS.md) · [0.3 pet incremental audit handoff](docs/desktop/DESKTOP_PET_WORK_B_HANDOFF.md) · [Release notes and remaining acceptance](docs/desktop/DESKTOP_PET_RELEASE_NOTES.md).
 
-The service binds to loopback, serves a fixed asset list and checks same-origin requests. These are application controls, not a sandbox against programs running as your user. Local session bodies, workspace evidence and Hook observation have distinct intended grants. Read [the scope design](docs/PRIVACY-SCOPE.md) together with [current limitations and remediation status](docs/KNOWN-ISSUES.md); do not infer a complete security guarantee from the design.
-
-The dashboard itself has no telemetry/upload flow or remote runtime assets. It does not alter the native Codex/Work UI or automatically install/trust the optional Hook plugin. No real Work or Codex session was opened by this publication preparation. Real-host version compatibility and manual acceptance remain pending.
-
-## Build in public
-
-[ROADMAP.md](ROADMAP.md) tracks proposed work; [CHANGELOG.md](CHANGELOG.md) describes recorded changes. [CONTRIBUTING.md](CONTRIBUTING.md) and [the development procedure](docs/DEVELOPMENT.md) cover feature branches, independent PR review, protected main, immutable prereleases and stable-release gates. Existing commits and authors must be preserved; this local source snapshot is not a replacement Git history.
-
-The project already carries MIT. [THIRD_PARTY.md](THIRD_PARTY.md) and [the dependency inventory](docs/DEPENDENCY-LICENSES.md) distinguish that license from optional development-tool licenses. No competitor implementation, fonts, browser binaries or installed dependencies are included in this proposed source set. The provenance review found no obvious direct copying in the inspected scope; it does not prove universal originality.
-
-```text
-src/          adapters, authority, evidence and local HTTP/SSE service
-public/       local UI modules, CSS and original SVG logo
-fixtures/     authored synthetic reports and example session records
-tests/        original unit, integration and browser suites
-scripts/      launch, verification, version and candidate tooling
-experiments/  separately installed optional metadata Hook
-docs/         architecture, limitations, verification and development records
-```
-
-The approved source preview is public at [Huamucuo/agent-progress-studio](https://github.com/Huamucuo/agent-progress-studio), preserving all nine original commits plus the reviewed repair and documentation commits. CI compatibility changes follow the branch/PR review process. No stable tag, release or public service has been issued.
+[MIT](LICENSE) · [Third-party runtime/build notices and known build advisory](THIRD_PARTY_NOTICES.md) · [Contributing](CONTRIBUTING.md). The desktop icon is original project artwork. No redistributed fonts or competitor code were added. Electron's upstream runtime license files remain in both distributions. No automatic updater, cloud service or public release is enabled.

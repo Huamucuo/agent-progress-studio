@@ -30,6 +30,9 @@ export class ResourceRegistry {
     if (!(await lstat(base)).isDirectory()) throw new Error('Workspace unavailable');
     return base;
   }
+  async hooks(root){const absolute=path.resolve(root),info=await lstat(absolute),canonical=await canonicalPath(absolute);if(!info.isDirectory()||info.isSymbolicLink()||canonical!==folded(absolute))throw Error('Hook directory alias or identity denied');
+    for(const home of this.homes)for(const name of ['sessions','archived_sessions']){const store=await canonicalPath(path.join(home,name),true);if(within(store,canonical)||within(canonical,store))throw Error('Hook directory overlaps protected body store');}return canonical;
+  }
   async regular(root, file, { log = false, missing = false, git = false } = {}) {
     const base = await canonicalPath(root), absolute = path.resolve(root, file);
     if (!within(base, absolute) || absolute === base) throw new Error('Path outside authorized resource');

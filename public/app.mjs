@@ -1,6 +1,9 @@
 import { h, icon, button, badge, card, empty, ring, showDialog } from './components.mjs';
 import { strings } from './i18n.mjs';
 import { StateReceiver } from './state-receiver.mjs';
+import { wireRequest as transportRequest, eventStream, isDesktop } from './transport.mjs';
+import { initializeDesktopUI } from './desktop-ui.mjs';
+import { explainMonitor,friendlyTaskTitle } from './monitor-model.mjs';
 const receiver = new StateReceiver();
 let activeStream, retryTimer;
 const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('aps-authority') : null;
@@ -28,8 +31,7 @@ function clearSensitive() {
 }
 function mutationScope() { return { authorityInstanceId: receiver.instance, expectedPolicyRevision: receiver.revision, selectionRevision: receiver.selection }; }
 async function wireRequest(url, data) {
-  const response = await fetch(url, data ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-APS-Token': token }, body: JSON.stringify(data) } : { cache: 'no-store' });
-  const result = await response.json(); if (!response.ok) throw new Error(result.error || response.statusText); return result;
+  return transportRequest(url,data,token);
 }
 async function request(url, data, kind, consume) {
   if (typeof consume !== 'function') throw new Error('A synchronous response consumer is required');
@@ -40,6 +42,11 @@ async function request(url, data, kind, consume) {
 }
 async function updateFromRequest(url, data) {
   const scope = mutationScope();
+  if (isDesktop && ['/api/source','/api/session-access','/api/hook-origin'].includes(url)) {
+    receiver.invalidate(); activeStream?.close(); clearSensitive();
+    try { await wireRequest(url,{...data,...scope}); } finally { await boot(); }
+    return;
+  }
   if (data?.decision?.startsWith('revoke')) {
     receiver.invalidate(); activeStream?.close(); clearSensitive();
     try { await wireRequest(url, { ...data, ...scope }); channel?.postMessage({ type: 'invalidate', instance: scope.authorityInstanceId }); }
@@ -52,6 +59,7 @@ async function action(url, data) { try { await updateFromRequest(url, data); sig
 async function exportReport() {
   try {
     await request('/api/export', undefined, 'export', result => {
+      if (isDesktop) { if (result.desktopSaved) notify(language === 'en' ? 'Report saved.' : '报告已保存。'); return; }
       const href = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
       const anchor = h('a', { href, download: 'agent-progress-report.json' }); anchor.click(); setTimeout(() => URL.revokeObjectURL(href), 0);
     });
@@ -66,7 +74,7 @@ function elapsed() {
   const seconds = Math.max(0, Math.floor((Date.parse(end) - Date.parse(task.startedAt)) / 1000));
   return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
 }
-function privacy() { showDialog(t('privacy'), h('p', {}, t('privacyDetail')), null, t('close')); }
+function privacy() { showDialog(t('privacy'), h('p', {}, window.apsDesktop ? (language==='en'?'All data stays local. This desktop opens no HTTP service; controlled IPC and the unified permission gateway govern reads and exports. Replies require separate permission.':'全部数据保存在本机。桌面版不启动网页服务，受控通信和统一授权网关管理读取与导出；回复需要单独授权。') : t('privacyDetail')), null, t('close')); }
 function render() {
   if (!snapshot) return;
   const scope = scopeKey(snapshot);
@@ -80,12 +88,12 @@ function render() {
     h('nav', { 'aria-label': t('workspace') }, ['overview', 'acceptance', 'evidence', 'events', 'connection'].map(key => button(t(key), () => navigate(key), { className: `nav-button ${view === key ? 'active' : ''}`, icon: key, testId: `nav-${key}`, 'aria-current': view === key ? 'page' : null },))),
     h('div', { className: 'sidebar-bottom' }, h('div', { className: 'privacy-card' }, icon('lock'), h('strong', {}, t('localOnly')), h('p', {}, t('localDetail')), button(t('privacy') + ' ↗', privacy, { kind: 'link' })), h('div', { className: 'version' }, h('span', { className: 'status-dot' }), 'AGENT PROGRESS STUDIO', h('span', {}, snapshot.version))));
   const topbar = h('header', { className: 'topbar' }, h('div', { className: 'breadcrumb' }, h('span', {}, 'Studio'), h('span', {}, '/'), h('strong', {}, t(view))),
-    h('div', { className: 'top-actions' }, badge(streamConnected ? t('connected') : t('reconnecting'), streamConnected ? 'auto_verified' : 'unknown'),
+    h('div', { className: 'top-actions' }, badge(streamConnected ? isDesktop ? (language==='en'?'Local channel available':'本地采集通道可用') : t('connected') : t('reconnecting'), streamConnected ? 'auto_verified' : 'unknown'),
       button(language === 'zh-CN' ? 'EN' : '中文', () => { language = language === 'zh-CN' ? 'en' : 'zh-CN'; localStorage.setItem('aps-language', language); render(); }, { className: 'language-button', testId: 'language-toggle', 'aria-label': 'Switch language' }),
       button('', () => { theme = theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('aps-theme', theme); render(); }, { className: 'icon-button', icon: theme === 'dark' ? 'sun' : 'moon', testId: 'theme-toggle', 'aria-label': theme === 'dark' ? 'Light theme' : 'Dark theme' }),
       button(t('export'), exportReport, { className: 'button export-button', icon: 'download', title: t('exportHint'), testId: 'export' })));
   const pages = { overview: overviewView, acceptance: acceptanceView, evidence: evidenceView, events: eventsView, connection: connectionView };
-  root.replaceChildren(sidebar, h('div', { className: 'workspace' }, topbar, h('main', { id: 'main' }, pages[view]()), h('footer', { className: 'page-footer' }, h('span', {}, t('observatory')), h('span', {}, t('noEta') + ' · ' + t('readonly')))));
+  root.replaceChildren(sidebar, h('div', { className: 'workspace' }, topbar, h('main', { id: 'main' }, pages[view]()), h('footer', { className: 'page-footer' }, h('span', {}, t('observatory')), h('span', {}, t('noEta') + ' · ' + (window.apsDesktop ? (language==='en'?'Replies require separate permission':'回复需要单独授权') : t('readonly'))))));
 }
 function pageHeading(title, subtitle, actionNode) { return h('div', { className: 'page-heading' }, h('div', {}, h('p', { className: 'eyebrow' }, 'AGENT PROGRESS STUDIO / 01'), h('h1', {}, title), h('p', { className: 'subtitle' }, subtitle)), actionNode); }
 function sourceBanner() {
@@ -99,6 +107,9 @@ function contentAccess() {
     const modal = showDialog(t('allowContent'), h('div', {}, h('code', {}, snapshot.access.sessionRef.backend), h('code', {}, id), h('p', {}, t('allowContentDetail'))),
       [button(t('allowContentConfirm'), () => { modal.close(); action('/api/session-access', { sessionRef: snapshot.access.sessionRef, sessionId: id, decision: 'allow-codex' }); }, { kind: 'primary', testId: 'confirm-content-access' })], t('close'));
   };
+  if(isDesktop)return h('section',{className:'desktop-content-permission'},h('span',{},t(granted?'contentGranted':'contentDenied')),
+    h('div',{className:'row'},granted&&snapshot.source.replyAccess?.supported?button(language==='en'?(snapshot.source.replyAccess.granted?'Revoke replies':'Allow sidebar replies'):(snapshot.source.replyAccess.granted?'撤销回复权限':'允许侧栏回复'),async()=>{const input={enabled:!snapshot.source.replyAccess.granted,...mutationScope()};try{await window.apsDesktop.replyConsent(input);}catch{notify(language==='en'?'Reply permission was not changed.':'回复权限未修改。');}await boot();},{kind:'quiet',testId:snapshot.source.replyAccess.granted?'revoke-reply-access':'allow-reply-access'}):null,
+    button(t(granted?'revokeContent':'allowContent'),granted?()=>action('/api/session-access',{sessionRef:snapshot.access.sessionRef,sessionId:id,decision:'revoke'}):allow,{kind:'quiet',testId:granted?'revoke-content-access':'allow-content-access',disabled:!granted&&snapshot.source.origin==='work-local'})));
   return card(t(granted ? 'contentGranted' : 'contentDenied'), t(granted ? 'contentGrantedDetail' : 'contentDeniedDetail'),
     button(t(granted ? 'revokeContent' : 'allowContent'), granted ? () => action('/api/session-access', { sessionRef: snapshot.access.sessionRef, sessionId: id, decision: 'revoke' }) : allow,
       { kind: 'quiet', testId: granted ? 'revoke-content-access' : 'allow-content-access', disabled: !granted && snapshot.source.origin === 'work-local' }));
@@ -135,12 +146,12 @@ function toolsCard() {
 }
 function monitorSelector() {
   const source = h('select', { id: 'monitor-source', testId: 'monitor-source', disabled: connecting, onChange: e => selectSource({ mode: e.target.value, endpoint: snapshot.source.endpoint }) },
-    [['work-hooks', 'hooksTitle'], ['local', 'logs'], ['demo', 'demoTitle'], ...(snapshot.source.mode === 'app-server' ? [['app-server', 'rpc']] : [])].map(([value, key]) => h('option', { value }, t(key))));
+    [['work-hooks', 'hooksTitle'], ['local', 'logs'], ['demo', 'demoTitle'], ...(snapshot.source.mode === 'app-server' ? [['app-server', 'rpc']] : [])].map(([value, key]) => h('option', { value }, isDesktop ? value === 'work-hooks' ? (language === 'en' ? 'Local task activity' : '本地任务活动') : value === 'local' ? (language === 'en' ? 'Codex local sessions' : 'Codex 本地会话') : value === 'demo' ? (language === 'en' ? 'Demo · simulated' : '演示 · 模拟数据') : t(key) : t(key))));
   source.value = snapshot.source.mode;
   const list = snapshot.sessions || [];
   const select = h('select', { id: 'monitor-session', testId: 'monitor-session', disabled: connecting || !list.length, onChange: e => selectSource({ mode: snapshot.source.mode, id: e.target.value, endpoint: snapshot.source.endpoint }) },
     !list.length ? h('option', { value: '' }, t(snapshot.source.mode === 'demo' ? 'demo' : 'noSessions')) : null,
-    list.map(s => h('option', { value: s.id }, `${originLabel(s.origin)} · ${s.id} · ${date(s.updatedAt)}`)));
+    list.map((s,i) => h('option', { value: s.id }, isDesktop?`${s.id===snapshot.task.id&&snapshot.task.title?friendlyTaskTitle(snapshot.task,language==='en'):(language==='en'?'Task ':'任务 ')+(i+1)} · ${originLabel(s.origin)} · ${date(s.updatedAt)} · ${s.id.slice(-6)}`:`${originLabel(s.origin)} · ${s.id} · ${date(s.updatedAt)}`)));
   if (snapshot.task.id && !list.some(s => s.id === snapshot.task.id) && snapshot.source.mode !== 'demo') select.append(h('option', { value: snapshot.task.id }, `${snapshot.task.id} · ${t('unlistedSession')}`));
   select.value = snapshot.source.mode === 'demo' ? '' : snapshot.task.id;
   return h('section', { className: 'monitor-selector' }, h('label', { for: 'monitor-source' }, t('source'), source), h('label', { for: 'monitor-session' }, t('selectedTask'), select), h('small', {}, t('autoDiscoverHint')));
@@ -151,17 +162,17 @@ function monitorCard() {
   const step = task.plan.find(p => p.status === 'inProgress');
   return h('section', { className: `monitor-card ${active ? 'observed-active' : ''}` },
     h('div', { className: 'monitor-top' }, h('div', {}, h('p', { className: 'eyebrow' }, t('agentStatus')), h('h2', { testId: 'monitor-status' }, h('span', { className: 'status-dot' }), t(m.status))), badge(snapshot.source.mode === 'demo' ? t('demo') : originLabel(snapshot.source.origin), snapshot.source.mode === 'demo' ? 'awaiting_human' : 'unknown')),
-    h('h3', { className: 'monitor-title' }, isHooks() ? t('hookSession') : language === 'en' && task.titleEn ? task.titleEn : task.title || t('noTask')),
+    h('h3', { className: 'monitor-title' }, isHooks() ? t('hookSession') : task.title?friendlyTaskTitle(task,language==='en'):t('noTask')),
     h('p', { className: 'monitor-activity', testId: 'monitor-activity' }, m.toolName ? `${t('latestTool')}: ${m.toolName} · ${t(m.outcome)}` : step ? `${t('currentStep')}: ${step.step}` : t(isHooks() ? 'workContentUnknown' : 'noActivityDetail')),
     h('div', { className: 'monitor-meta' }, h('code', {}, task.id || '—'), h('span', {}, `${t('observedActivityAt')}: ${date(m.at)}`)),
-    h('p', { className: 'monitor-note' }, t('observationHint')));
+    h('p', { className: 'monitor-note' }, isDesktop ? (language==='en'?'Status follows observed activity. A stopped turn does not certify task completion.':'状态依据最近活动证据；回合停止不等于任务完成。') : t('observationHint')));
 }
 function displayMonitor() {
   const m = snapshot.monitor;
   if (!streamConnected) return { ...m, status: 'feed_unavailable' };
   const terminal = ['turn_completed', 'turn_interrupted', 'turn_failed', 'turn_stopped'].includes(m.observedStatus);
   const age = Date.now() - Date.parse(m.at);
-  if (snapshot.source.mode !== 'demo' && snapshot.source.connected && !terminal && m.at && (!Number.isFinite(age) || age < 0 || age > m.staleAfterMs)) return { ...m, status: 'no_recent_evidence' };
+  if (snapshot.source.mode !== 'demo' && snapshot.source.connected && !terminal && m.at && (!Number.isFinite(age) || age < 0 || age > m.staleAfterMs)) return { ...m, status: m.status==='awaiting_tool_result'?'awaiting_tool_result':'no_recent_evidence' };
   return m;
 }
 function refreshMonitorCard() {
@@ -172,7 +183,7 @@ function progressMeasures() {
   const p = snapshot.progress;
   return h('section', { className: 'progress-measures' },
     h('div', { className: 'progress-measure' }, h('h3', {}, t('overallProgress')), h('strong', { testId: 'overall-progress' }, t('unknown')), h('p', {}, t('overallHint'))),
-    h('div', { className: 'progress-measure' }, h('h3', {}, t('planProgress')), h('strong', { testId: 'plan-progress' }, p.plan.total ? `${p.plan.completed} / ${p.plan.total}` : t('unknown')), h('p', {}, t('planProgressHint'))),
+    h('div', { className: 'progress-measure' }, h('h3', {}, t('planProgress')), h('strong', { testId: 'plan-progress' }, p.plan.total ? `${p.plan.completed} / ${p.plan.total}` : t('noPlan')), h('p', {}, p.plan.total?t('planProgressHint'):(language==='en'?'This source has not reported a structured plan.':'这个来源尚未上报结构化计划。'))),
     h('div', { className: 'progress-measure' }, h('h3', {}, t('progress')), h('strong', { testId: 'coverage-value' }, p.acceptance.percent == null ? '—' : `${p.acceptance.percent}%`), h('p', {}, p.acceptance.total ? `${p.acceptance.met} / ${p.acceptance.total} · ${t('criteriaMet')}` : t('noCriteria')), button(t('acceptance') + ' ↗', () => navigate('acceptance'), { kind: 'link' })));
 }
 function replayControls() {
@@ -184,12 +195,26 @@ function replayControls() {
 }
 function overviewView() {
   const s = snapshot, u = s.task.usage;
+  if (isDesktop) return desktopOverview();
   return [pageHeading(t('overview'), t('subheading')), monitorSelector(), contentAccess(), monitorCard(), progressMeasures(),
     h('div', { className: 'content-grid' }, toolsCard(), eventsCard(true)), planCard(),
     h('section', { className: 'metrics-row' }, metrics(t('usage'), numeric(u.total), t('usageHint')), metrics(t('lastTokens'), numeric(u.last), `${t('context')}: ${numeric(u.contextWindow)}`), metrics(t('elapsed'), elapsed(), s.source.mode === 'demo' ? t('simulationTime') : t('timeHint'))),
     h('p', { className: 'metric-footnote' }, t('exactContext') + ' · ' + t('contextHint')),
     sourceBanner(), isHooks() ? hookStatus() : null,
     h('div', { className: 'content-grid lower-grid' }, gitCard(true), h('section', { className: 'card status-card' }, h('div', { className: 'card-heading' }, h('div', {}, h('h2', {}, t('acceptance')), h('p', {}, t('acceptanceHint')))), stateSummary())), replayControls(), diagnostics()];
+}
+function desktopOverview() {
+  const criteria = snapshot.acceptance.criteria, verified = criteria.filter(c => ['auto_verified','accepted'].includes(c.status)), pending = criteria.filter(c => !['auto_verified','accepted'].includes(c.status));
+  const resultCard = (title,rows,emptyText) => card(title,'',h('div',{className:'desktop-result-list'},rows.length ? rows.slice(0,4).map(c => button(h('span',{className:'desktop-result'},h('span',{},criterionTitle(c)),status(c.status)),()=>criterionDialog(c),{kind:'quiet',testId:`desktop-result-${c.id}`})) : h('p',{},emptyText)),button(t('acceptance')+' ↗',()=>navigate('acceptance'),{kind:'link'}));
+  return [pageHeading(language==='en'?'Your task, live':'任务实时观察',language==='en'?'Choose who to monitor. Follow observed activity, verified work and remaining checks.':'选择监控对象，查看实际活动、已验证的工作和待处理事项。'),
+    monitorSelector(),contentAccess(),h('div',{className:'desktop-home-grid desktop-hero'},monitorCard(),toolsCard()),explanationCard(),progressMeasures(),
+    h('div',{className:'desktop-home-grid'},resultCard(language==='en'?'Verified work':'哪些工作已经验证',verified,language==='en'?'No verified acceptance evidence yet.':'尚无已通过的验收证据。'),resultCard(language==='en'?'Still to check':'哪些事情仍待处理',pending,criteria.length ? (language==='en'?'All declared acceptance checks are met. Overall task completion remains separate.':'已满足当前声明的验收条件；任务总体完成度仍单独判断。') : (language==='en'?'No acceptance conditions declared. Remaining work is unknown.':'尚未定义验收条件，剩余工作保持未知。'))),
+    eventsCard(true),planCard(),replayControls(),diagnostics()];
+}
+function explanationCard(){
+ const ex=explainMonitor({...snapshot,monitor:displayMonitor()}),english=language==='en';
+ return card(english?'What this means':'这意味着什么',english?'Deterministic interpretation · no model service':'确定性解释 · 无需模型服务',
+  h('details',{className:'desktop-explanation',testId:'explanation'},h('summary',{},english?ex.en:ex.zh),h('p',{},(english?'Observed fact: ':'观察到的事实：')+(english?ex.facts.en:ex.facts.zh)),h('p',{},(english?'Basis: ':'依据：')+(ex.basis.map(x=>`${x.kind} · ${x.id}`).join(', ')||(english?'No recorded activity':'暂无活动记录'))),h('p',{},(english?ex.unknowns.en:ex.unknowns.zh).join(' · ')),button(english?'Inspect relevant records':'查看相关记录',()=>navigate(ex.basis.some(x=>x.kind==='criterion')?'acceptance':'events'),{kind:'link'})));
 }
 function acceptanceView() {
   const rows = snapshot.acceptance.criteria;
@@ -279,7 +304,7 @@ async function boot() {
     token = bootstrap.token;
     await request('/api/snapshot', undefined, 'snapshot', result => {
     snapshot = result; streamConnected = true; render();
-    const stream = new EventSource('/api/stream'), ticket = receiver.ticket('snapshot'); activeStream = stream;
+    const stream = eventStream('/api/stream',mutationScope()), ticket = receiver.ticket('snapshot'); activeStream = stream;
     stream.onopen = () => { if (receiver.isCurrent(ticket)) { streamConnected = true; render(); } };
     stream.onerror = () => {
       if (!receiver.isCurrent(ticket)) return;
@@ -305,6 +330,8 @@ window.addEventListener('online', boot);
 window.addEventListener('pageshow', event => { if (event.persisted) boot(); });
 document.addEventListener('focusout', () => setTimeout(() => { if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) && !document.querySelector('dialog[open]')) render(); }, 0));
 boot();
+initializeDesktopUI({getLanguage:()=>language,navigate,refresh:boot,notify,readPrivate:async(method,consume)=>{const ticket=receiver.ticket('detail'),value=await window.apsDesktop[method]();if(!receiver.accept(value,ticket))throw Error('Scope changed');return consume(value);}});
+window.addEventListener('storage',event=>{if(event.key==='aps-language')language=event.newValue==='en'?'en':'zh-CN';if(event.key==='aps-theme')theme=event.newValue==='light'?'light':'dark';if(snapshot&&receiver.fresh())render();});
 setInterval(() => {
   if (snapshot && !receiver.fresh()) { receiver.invalidate(); clearSensitive(); if (!document.hidden) boot(); return; }
   if (!snapshot || view !== 'overview') return;

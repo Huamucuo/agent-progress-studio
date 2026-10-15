@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "tool": "built-in image generation",
+  "date": "2026-10-14",
+  "style": "cozy-16-bit",
+  "width": 1024,
+  "height": 1536,
+  "characters": {
+    "aps-dog": "50eaa751e0ab0da8ac1d0efbdc965a7598cd2e78368c4d423a470efe4b67c269",
+    "aps-cat": "3b1586a765b8dcb9af67b5cb89971b25fe11d85fdb306a176306cde76b782465",
+    "aps-capybara": "021c0976194b4a2ece1b1e6e80f38f117c2005781f19709a5bca90c1cfc7e638",
+    "aps-outline-dog": "bed75d9efd6d062be390bf657e92b82922898fecabdee6a24c41f8f5777df464"
+  }
+}

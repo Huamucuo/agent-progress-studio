@@ -28,6 +28,8 @@ try {
   await check('language-theme-persistence', async () => {
     await page.getByTestId('language-toggle').click(); await page.getByRole('heading', { name: 'Run overview', exact: true }).waitFor();
     await page.getByTestId('theme-toggle').click(); await page.reload();
+    // Navigation can finish before the asynchronous bootstrap renders preferences.
+    await page.getByTestId('theme-toggle').waitFor();
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
   });

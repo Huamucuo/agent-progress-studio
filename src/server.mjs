@@ -7,7 +7,8 @@ import { StudioService } from './service.mjs';
 import { VERSION } from './version.mjs';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.mjs', 'app.mjs'], ['/state-receiver.mjs', 'state-receiver.mjs'], ['/components.mjs', 'components.mjs'], ['/i18n.mjs', 'i18n.mjs'], ['/styles.css', 'styles.css'], ['/logo.svg', 'logo.svg']]);
+const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html'], ['/app.mjs', 'app.mjs'], ['/state-receiver.mjs', 'state-receiver.mjs'], ['/transport.mjs','transport.mjs'], ['/desktop-ui.mjs','desktop-ui.mjs'], ['/desktop.css','desktop.css'], ['/components.mjs', 'components.mjs'], ['/i18n.mjs', 'i18n.mjs'], ['/styles.css', 'styles.css'], ['/logo.svg', 'logo.svg']]);
+for(const file of ['monitor-model.mjs','power-labels.mjs'])assets.set('/'+file,file);
 const types = { '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
 const json = (res, code, data) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
 async function body(req) {

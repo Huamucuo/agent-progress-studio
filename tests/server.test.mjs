@@ -24,6 +24,7 @@ test('snapshot exposes deterministic demo, separate acceptance and replay contro
   const empty = await (await fetch(a.base + '/api/snapshot')).json();
   assert.equal(empty.task.plan.length, 0);
 });
+test('developer web regression serves shared explanation and desktop-label modules without exposing runtime files',async t=>{const a=await app(t);for(const file of ['monitor-model.mjs','power-labels.mjs']){const response=await fetch(a.base+'/'+file);assert.equal(response.status,200,file);assert.match(response.headers.get('content-type'),/javascript/);}assert.equal((await fetch(a.base+'/desktop/window.mjs')).status,404);});
 test('unsafe origins, invalid CSRF tokens and traversal requests are rejected', async t => {
   const a = await app(t);
   assert.equal((await a.post('/api/demo', { action: 'restart' }, 'bad')).status, 403);

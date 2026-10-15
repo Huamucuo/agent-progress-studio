@@ -1,8 +1,5 @@
 # Agent Progress Studio 0.1 — specification
 
-> Historical development notes for 0.1.1-rc.4. These describe implementation intent or earlier observations; they do not certify current safety or host compatibility. The original baseline had five independent-review findings; the current branch implements fixes. Current review status and remaining limits are recorded below. Read [KNOWN-ISSUES.md](KNOWN-ISSUES.md) and [VERIFICATION.md](VERIFICATION.md) before using a real session.
-
-
 Date: 2026-10-09. Original implementation, local Codex first. The user's ten requirements are the release scope. This is a browser dashboard, not a replacement for the native Codex/Work interface.
 
 ## Product
@@ -11,7 +8,7 @@ A quiet, bilingual observability workspace: left navigation and source selector,
 
 ## Chosen approach
 
-The initial design used Node.js >=22.15. Current runtime requirements are maintained in [INSTALL.md](INSTALL.md): `^22.17.0 || ^24.2.0`. ES modules, native HTTP/SSE, vanilla component modules. Zero production dependencies. Built-in node:test for unit/integration tests; Playwright as an optional development dependency for browser tests. Portable Windows launchers run the same source distribution.
+Node.js >=22.15, ES modules, native HTTP/SSE, vanilla component modules. Zero production dependencies. Built-in node:test for unit/integration tests; Playwright as an optional development dependency for browser tests. Portable Windows launchers run the same source distribution.
 
 Alternatives considered: Electron adds packaging and native runtime weight before the browser use case needs it; a hosted MCP application changes the privacy and transport model. Both are deferred. A React/build-tool stack is viable but unnecessary for this first, small reusable component library.
 

@@ -26,7 +26,7 @@ export class AccessStore {
       try { await marker.writeFile(JSON.stringify({ pid: process.pid, instance: randomUUID() })); await marker.sync(); } finally { await marker.close(); }
       if (unclean && saved?.version === 2) {
         saved.revision++;
-        for (const entry of Object.values(saved.entries || {})) for (const cap of ['content', 'evidence', 'observe']) {
+        for (const entry of Object.values(saved.entries || {})) for (const cap of ['content', 'evidence', 'observe','reply']) {
           if (entry[cap]) { entry[cap].allowed = false; entry[cap].generation++; }
         }
         saved.recovery = 'Unclean shutdown: confirm access again';

@@ -11,6 +11,7 @@ import { discoverSessions, LogSource } from '../src/adapters/codex-log.mjs';
 import { SessionAccess, canonicalUuid, sessionRef } from '../src/core/session-access.mjs';
 import { AppServerSource } from '../src/adapters/app-server.mjs';
 import { createApplication } from '../src/server.mjs';
+import { DesktopHost } from '../desktop/host.mjs';
 import { collectEvidence, readEvidence, sourceFingerprint } from '../src/collectors/evidence.mjs';
 
 const codexId = 'abcdef12-abcd-4abc-8abc-abcdef123456';
@@ -60,6 +61,32 @@ function traceIO(t, fixture) {
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
   return calls;
 }
+
+async function crowdedFixture(t){
+ const f=await fixture(t,`rollout-${codexId}.jsonl`),older=path.join(f.root,'sessions/2026/10/09'),recent=path.join(f.root,'sessions/2026/10/13');await fs.mkdir(older,{recursive:true});await fs.mkdir(recent,{recursive:true});const relocated=path.join(older,path.basename(f.file));await fs.rename(f.file,relocated);f.file=relocated;
+ await Promise.all(Array.from({length:310},(_,i)=>fs.writeFile(path.join(recent,`rollout-00000000-0000-4000-8000-${String(i).padStart(12,'0')}.jsonl`),'SYNTHETIC_UNKNOWN_BODY_MUST_NOT_OPEN')));return f;
+}
+test('old explicitly selected UUID survives the 300-candidate discovery budget using metadata only',async t=>{
+ const f=await crowdedFixture(t),calls=traceIO(t,f);assert.equal((await discoverSessions(f.root)).some(s=>s.id===codexId),false,'Fixture must exceed ordinary discovery');
+ const selected=await discoverSessions(f.root,60,new Set(),codexId.toUpperCase());assert.ok(selected.some(s=>s.id===codexId),'Explicit older selection must remain available');assert.ok(selected.length<=61);assert.equal(calls.length,0,'Priority discovery cannot open even the selected body');
+ assert.equal((await discoverSessions(f.root,60,new Set([codexId]),codexId)).some(s=>s.id===codexId),false,'Known Work must remain excluded');assert.equal(calls.length,0);
+});
+test('priority metadata denies duplicate UUID aliases across active and archived stores without a body read',async t=>{
+ const f=await crowdedFixture(t);await fs.mkdir(path.join(f.root,'archived_sessions'));await fs.writeFile(path.join(f.root,'archived_sessions',`rollout-${codexId.toUpperCase()}.jsonl`),'SYNTHETIC_CONFLICTING_BODY');const calls=traceIO(t,f);
+ assert.equal((await discoverSessions(f.root,60,new Set(),codexId)).some(s=>s.id===codexId),false);assert.equal(calls.length,0);
+});
+test('incomplete priority scan cannot retain an earlier candidate or read a body',async t=>{
+ const f=await fixture(t,`rollout-${codexId}.jsonl`);await fs.mkdir(path.join(f.root,'sessions/overbudget'));const original=fs.readdir;
+ t.mock.method(fs,'readdir',async(dir,...args)=>String(dir).endsWith('overbudget')?Array.from({length:10001},(_,i)=>({name:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}.jsonl`,isDirectory:()=>false,isFile:()=>true,isSymbolicLink:()=>false})):original(dir,...args));syncBuiltinESMExports();t.after(()=>{t.mock.restoreAll();syncBuiltinESMExports();});const calls=traceIO(t,f);
+ assert.ok((await discoverSessions(f.root)).some(s=>s.id===codexId),'Ordinary candidate exists before the bounded priority scan');assert.equal((await discoverSessions(f.root,60,new Set(),codexId)).some(s=>s.id===codexId),false);assert.equal(calls.length,0);
+});
+test('desktop old-session selection stays denied until granted, monitors appends, and revoke stops body I/O',async t=>{
+ const f=await crowdedFixture(t),calls=traceIO(t,f),host=new DesktopHost({dataDir:path.join(f.root,'data'),codexHome:f.root,workHooksDir:path.join(f.root,'events'),interval:0,initialSelection:{id:codexId}});await host.start();t.after(()=>host.close());
+ assert.equal(calls.length,0);assert.ok(host.service.sessions.some(s=>s.id===codexId));assert.equal((await host.request('monitor')).task.title,'');
+ const s=()=>({authorityInstanceId:host.service.access.instanceId,expectedPolicyRevision:host.service.access.revision,selectionRevision:host.service.selectionRevision});await host.request('sessionAccess',{sessionId:codexId,decision:'allow-codex',...s()});assert.ok(calls.some(c=>c.body),'Authorized read is the positive control');
+ await fs.appendFile(f.file,row('event_msg',{type:'agent_message',phase:'final_answer',message:'SYNTHETIC_OLD_SESSION_LIVE_APPEND'}));await host.service.tick();const allowed=await host.request('monitor');assert.equal(allowed.conversation.messages.at(-1).text,'SYNTHETIC_OLD_SESSION_LIVE_APPEND');
+ await host.request('sessionAccess',{sessionId:codexId,decision:'revoke',...s()});calls.beginPhase('revoked');await host.service.tick();assert.deepEqual((await host.request('monitor')).conversation.messages,[]);assert.equal(calls.length,0,'Revoked old session must not open any part of its body');let returned=0;assert.throws(()=>host.sendResponse(allowed,()=>returned++));assert.equal(returned,0);
+});
 
 for (const [label, filename] of [
   ['lowercase', `rollout-${codexId}.jsonl`],

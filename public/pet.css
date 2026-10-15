@@ -1,0 +1,1 @@
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent!important}canvas{image-rendering:pixelated;display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}canvas:active{cursor:grabbing}canvas:focus-visible{outline:1px dashed #9ee9d0;outline-offset:-4px}

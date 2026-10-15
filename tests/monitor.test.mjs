@@ -9,10 +9,12 @@ const observe = (events, options = {}) => engine.monitorTask?.(events.reduce(eng
 test('overall completion stays unknown even when plan and acceptance reach 100 percent', () => {
   const state = engine.reduceEvent(engine.createState('s'), event('plan', { plan: [{ step: 'done', status: 'completed' }] }));
   assert.deepEqual(engine.progressSummary?.(state, { percent: 100, met: 2, total: 2 }), {
-    overall: { percent: null }, plan: { completed: 1, total: 1, inProgress: 0, pending: 0, unknown: 0, percent: 100 },
+    overall: { percent: null }, plan: { completed: 1, total: 1, inProgress: 0, pending: 0, failed:0,unknown: 0, percent: 100 },
     acceptance: { percent: 100, met: 2, total: 2 }
   });
 });
+test('reported failed plan steps remain visible without earning overall progress',()=>{const s=engine.reduceEvent(engine.createState('s'),event('plan',{plan:[{step:'failed step',status:'failed'}]}));assert.equal(s.plan[0].status,'failed');assert.equal(engine.progressSummary(s,{percent:null,met:0,total:0}).plan.failed,1);assert.equal(engine.progressSummary(s,{percent:null,met:0,total:0}).overall.percent,null);});
+test('an identifiable long-running Codex call remains waiting for its result while current execution is unconfirmed',()=>{const m=observe([event('tool',{toolId:'call',name:'exec_command',status:'inProgress'})],{now:now+60000});assert.equal(m.status,'awaiting_tool_result');assert.equal(m.fresh,false);assert.equal(m.toolName,'exec_command');});
 test('plan step counts and acceptance use separate denominators and preserve absent data', () => {
   const state = engine.reduceEvent(engine.createState('s'), event('plan', { plan: [{ step: 'a', status: 'completed' }, { step: 'b', status: 'pending' }] }));
   const progress = engine.progressSummary?.(state, { percent: 25, met: 1, total: 3 });

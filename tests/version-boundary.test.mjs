@@ -12,6 +12,7 @@ import { AppServerSource } from '../src/adapters/app-server.mjs';
 test('M-01 package, lockfile, README, bootstrap, snapshot and RPC initialize agree on one product version', async t => {
   const pkg = JSON.parse(await readFile('package.json')), lock = JSON.parse(await readFile('package-lock.json'));
   assert.equal(VERSION, pkg.version); assert.equal(lock.version, VERSION); assert.equal(lock.packages[''].version, VERSION);
+  const desktop=VERSION.match(/^(\d+\.\d+\.\d+)-desktop\.(\d+)$/);if(desktop){assert.equal(pkg.build.buildVersion,desktop[1]+'.'+desktop[2]);assert.equal(pkg.build.buildNumber,desktop[2]);}
   execFileSync(process.execPath, ['scripts/version.mjs']);
   const dir = await mkdtemp(path.join(tmpdir(), 'aps-version-')), app = await createApplication({ port: 0, mode: 'demo', interval: 0, dataDir: dir });
   t.after(async () => { await app.close(); await rm(dir, { recursive: true, force: true }); });
@@ -26,6 +27,7 @@ test('architectural import guard: business readers and process/network edges rem
     ['src/core/resource-registry.mjs', ['node:fs/promises']], ['src/collectors/data-gateway.mjs', ['node:fs', 'node:fs/promises', 'node:child_process']],
     ['src/adapters/codex-log.mjs', ['node:fs/promises']], ['src/adapters/work-hooks.mjs', ['node:fs/promises']],
     ['src/service.mjs', ['node:fs/promises']], ['src/server.mjs', ['node:fs/promises', 'node:http']]
+    ,['src/pet/progression.mjs',['node:fs','node:fs/promises']],['src/pet/pack.mjs',['node:fs','node:fs/promises']]
   ]);
   async function walk(dir) {
     for (const file of await readdir(dir, { withFileTypes: true })) {

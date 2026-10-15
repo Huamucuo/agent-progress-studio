@@ -1,0 +1,12 @@
+import {h}from './components.mjs';
+let serial=0,timer,expiry;const root=document.getElementById('notice');
+const labels={reply:['收到新的 Agent 回复','A new Agent reply was recorded'],failure:['任务活动报告失败，请查看详情','Task activity reported failure; inspect details'],attention:['出现需要关注的记录','An attention event was recorded'],'turn-ended':['本回合已结束；项目完成度仍未知','This turn ended; project completion remains unknown'],activity:['有新的任务活动','New task activity'],'cache-cleaned':['已完成本应用缓存清理，结果请查看设置；会话与授权保留。','App cache cleanup finished; inspect Settings for its result. Sessions and grants are retained.'],'power-countdown':['关机倒计时开始；可在浮窗或托盘取消。','Shutdown countdown started; cancel in the floating monitor or tray.'],'power-cancelled':['自动关机准备已取消。','Pending shutdown was cancelled.'],'power-failed':['Windows 关机请求未完成；不会强制重试。','Windows shutdown request did not complete; no forced retry.']};
+const clear=()=>{root.replaceChildren();clearTimeout(timer);clearTimeout(expiry);};
+window.apsDesktop.onNotice(frame=>{if(!Number.isSafeInteger(frame.serial)||frame.serial<=serial)return;serial=frame.serial;clear();if(frame.clear||Date.now()>frame.expiresAt)return;
+ let value;try{value=JSON.parse(frame.json);}catch{return;}const n=value.notice;if(!n||!labels[n.code])return;
+ const en=localStorage.getItem('aps-language')==='en';document.documentElement.lang=en?'en':'zh-CN';document.documentElement.dataset.theme=localStorage.getItem('aps-theme')==='light'?'light':'dark';document.body.classList.remove('fade');
+ const source=n.source==='app'?'APS':n.source==='work-local'?'Work':n.source==='codex'?'Codex':en?'Unknown source':'来源未知';
+ root.append(h('header',{},h('b',{},'APS'),h('span',{},source+(n.sessionId?' · '+String(n.sessionId).slice(-12):'')),h('small',{},en?'Mouse passes through':'鼠标穿透')),h('p',{},n.count>1?(en?`${n.count} new task updates`:`新增 ${n.count} 条任务动态`):n.preview||labels[n.code][en?1:0]));
+ timer=setTimeout(()=>document.body.classList.add('fade'),Math.max(0,frame.expiresAt-Date.now()-400));expiry=setTimeout(clear,Math.max(0,frame.expiresAt-Date.now()));
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clear();});

@@ -1,56 +1,71 @@
-# Verification and compatibility
+# V0.1 engineering verification / 版本核验
 
-Preparation date: **2026-10-12**. Retained original baseline: `0.1.1-rc.4`, commit `e02febd5184ee679372c779e1c1c07214dec8358`. Current changes live on an independent repair branch; the original runtime project and all nine commits remain intact.
+This document records the original V0.1 release baseline. For the subsequent Work locally Hook experiment and its separate live measurements, see [WORK-HOOKS](WORK-HOOKS.md). The old release ZIP and the development branch are distinct artifacts.
 
-## Fresh repair evidence
+Verified on **2026-10-09 (Asia/Shanghai)**, Windows, Node.js **24.17.0**, installed Microsoft Edge, Codex CLI **0.162.0-alpha.2**. This records executed engineering checks. User acceptance remains a separate, unapproved gate.
 
-| Check | Scope | Measured result |
+本记录来自实际运行，没有代替用户进行人工验收。Node 22.15 是声明的最低版本，本次实际执行版本为 24.17.0；没有实测认证其他操作系统或全部 Codex 版本。
+
+## Automated results / 自动化结果
+
+Command: `node scripts/verify.mjs --browser`.
+
+| Suite | Result | Behavior checked |
 | --- | --- | --- |
-| Before-fix regressions | Original baseline; temporary synthetic homes, local Git fixtures and loopback WebSocket peers | 23 cases failed for their intended boundary conditions, including an actual native WebSocket process exit and configured Git verifier execution controls. |
-| Focused repair regressions | Exact frozen repair source on Windows x64, Node 24.17.0 | 23 passed; 0 failed or skipped. |
-| Complete Node suites | Original suites plus 23 new cases in an isolated environment | 133 passed; 0 failed or skipped. No existing test was suppressed; the legacy paging case now explicitly opts in to experimental API behavior. |
-| Independent fix review | Immutable complete Git diff and source identities | completed static review of the immutable fix: no concrete source-backed bypass or regression found within the five-finding scope. Scope is the five repaired boundaries and possible bypass/regressions, not a certification of every dependency or integration. |
-| Project verifier | Disposable synthetic source copy; local acceptance report only | 14/14 named groups passed; exit 0 and stableSource=true. Generated `.agent-progress/results.json` is excluded from public source. |
-| Browser and privacy suites | Installed Edge and locked Playwright; disposable synthetic source/session copy | 17 UI and 6 named privacy flows passed; exit 0, no page errors. The privacy report also contains a timing metric, which is not an additional flow. Edge product version was not newly captured. |
-| License and package boundary | Same package/lockfile, own MIT and retained third-party notices | No new dependency or imported asset. Playwright/Playwright-core Apache-2.0 with embedded notices; optional fsevents MIT. See [inventory](DEPENDENCY-LICENSES.md). |
-| Initial published-source CI | Windows/Ubuntu × Node 22.15.0/24.17.0 | Both Ubuntu jobs passed; Windows 22.15.0 failed filesystem validation and Windows 24.17.0 reached its job limit. [Original run](https://github.com/Huamucuo/agent-progress-studio/actions/runs/38248840712). |
-| CI compatibility follow-up | Canonical synthetic temporary root; Node 22.17.0/24.17.0 | New matrix results must be read from the follow-up PR; no runtime permission guard is relaxed. |
-| Real Codex/Work or external app-server | No actual user sessions used | Not tested or renewed. Requires separately authorized host/manual acceptance. |
-| Other systems and minimum declared Node | Not exercised in the measured local repair run | Unverified; a declared requirement or proposed matrix is not compatibility evidence. |
+| Acceptance/task engine | 9 / 9 passed | Weighted criteria, human gates, failure precedence, missing files, stale evidence, unknown metrics, event deduplication, turn reset |
+| Collectors | 9 / 9 passed | Codex plan/usage normalization, ignored private reasoning, partial UTF-8 append, rotation/truncation, Git diff, report invalidation, confined evidence paths |
+| App-server adapter | 3 / 3 passed | Literal loopback restriction, unrelated-thread filtering, current-turn history isolation |
+| Local service | 5 / 5 passed | Deterministic replay, origin/token checks, durable reviews and export, source switch, initial SSE snapshot for reconnect |
+| Edge browser flows | 7 / 7 passed | Dashboard, language/theme persistence, evidence dialog, review/reload, JSON export, no-plan unknown progress, replay/responsive layout |
 
-The controlled Git-helper tests deliberately enable execution in their raw baseline control and then check its suppression by evidence collection. Browser checks use real rendering and HTTP with synthetic session/host data; they cannot establish actual Codex/Work schemas or another client's notification delivery. Tests and independent review cover finite cases. The observer is not an OS sandbox.
+**26 core/integration tests and 7 browser flows passed.** Browser checks also observed zero page errors, zero external requests, no horizontal overflow at 390 px width, and an on-screen review confirmation button at a 390 × 844 viewport. Screenshots were visually inspected in dark Chinese, light English and narrow layouts. This is not a comprehensive accessibility audit.
 
-## Initial failures and sequential rechecks
+The generated `.agent-progress/results.json` contains actual runner output, process exit codes and a SHA-256 fingerprint. It is intentionally untracked by Git; the portable release includes the generated report. It is valid only while its source fingerprint matches. Regenerate it after edits rather than editing its pass/fail fields.
 
-The first concurrent disposable verification produced four of five expected Hook callback records, and its browser run timed out during page load. These failures and exit statuses are retained. Unchanged sequential verifier, browser and privacy runs passed, with no assertion, production deadline or source relaxation. Load or I/O pressure is a possible explanation; the exact cause was not captured at the time. This is a remaining host/load acceptance limit, not a defect proven fixed by rerunning.
+## Windows and real-source checks / 启动与真实来源
 
-The final public-source CI wrapper was also exercised in a separate 96-file disposable snapshot: version check passed; 133 Node cases passed, zero failures/skips, exit 0 and no cleanup warning. Only subsequent documentation result wording and Git text-line-ending normalization differ from that snapshot; frozen production and regression bytes are unchanged.
+- `start.cmd --demo --no-open --port 4321` was actually launched on Windows. HTTP, all application assets, deterministic **33.3%** demo coverage and report/source fingerprint matching were checked; the temporary process was stopped afterward. No runtime npm dependencies are required.
+- The live JSONL adapter discovered and selected this task's actual `CODEX_THREAD_ID`, read current activity/tools and reported token fields. Raw prompts, session logs and real usage values are excluded from the release archive and screenshots.
+- A separately owned local Codex app-server was initialized. Read-only thread listing and reading found the current thread. Its stored phase differed from the active log: a separate endpoint must not be presented as a guaranteed real-time desktop mirror. The probe server was stopped afterward.
+- Git tests created disposable repositories, changed files and inspected actual diff/commit output. No user repository was modified by those tests.
+- The portable ZIP is separately extracted and tested through `demo.cmd` without `node_modules`; the adjacent release-check JSON and SHA256SUMS file record that artifact check.
 
-## Repeat checks
+## Review repairs / 审查修正
+
+An independent code review identified four issues. Each was reproduced with a regression test and fixed: sensitive paths could enter Git diff output; explicitly declared artifacts in normally ignored locations could escape fingerprint invalidation; skipped large log ranges could retain stale completion; app-server history could mix earlier-turn tools with the current turn. A further engine test ensures passing checks cannot bypass a declared missing implementation file.
+
+## Acceptance boundary / 验收边界
+
+The project's own checklist has seven equal-weight conditions. After a matching full verification report, five are automatically verified and two remain for human review: UI/workflow usability and source/document/license delivery. Expected coverage is **71.4%**, not 100%, until the user reviews those conditions. The test fixture's human approval is isolated from real project reviews.
+
+Known limits remain explicit: internal JSONL compatibility is best effort; unknown context/plan/time data stay unknown; no ETA is invented; source hashing is bounded; local reports are auditable but not tamper-proof; V0.1 does not integrate ChatGPT/Work or modify native host UI. See [EVIDENCE](EVIDENCE.md) and [INTEGRATIONS](INTEGRATIONS.md).
+
+## Reproduce / 复现
 
 ```powershell
-node scripts/ci-offline.mjs
-
-# Optional development tooling; provisioning can use the network
 npm ci --ignore-scripts
-node scripts/ci-offline.mjs --browser
-
-# Original producer contract; use a disposable workspace
-npm run verify
+node scripts/verify.mjs --browser
+start.cmd --workspace "C:\path\to\agent-progress-studio"
 ```
 
-The isolated runner forwards platform essentials and synthetic home/temp/config paths only. It uses empty developer Git configuration and does not forward credentials, real session IDs, trace destinations or observer directories. CI runs Node fixtures with a read-only repository token, pinned actions, no dependency install and no artifact upload. Browser temporary-profile cleanup is a separate diagnostic; cleanup warnings do not hide a suite failure or authorize changing Windows permissions.
+Use the no-plan simulation in Connections to check unknown progress. Open the full simulation to inspect distinct failed, unknown, implemented, awaiting-review and verified conditions.
 
-The verifier produces source-fingerprinted acceptance checks in `.agent-progress/results.json`. A report from a disposable copy validates that copy; it is not evidence for a real user's observed workspace. Screenshots, logs, exports, traces, runtime stores, local review attachments and real session identifiers remain excluded. The source-review ZIP is a file snapshot for approval, not a stable release or replacement Git history.
+## 0.1.1-rc.2 incremental validation
 
-## Historical evidence and remaining gates
+The V0.1 statements above describe the audited baseline. RC.2 adds optional real Work lifecycle/tool observations and a monitoring-first home; see [WORK-HOOKS](WORK-HOOKS.md) for live evidence and failed-attempt limits. Unit and browser fixtures are isolated from the real recorder spool. New regression cases cover automatic Codex discovery, stable task selection, tool metadata filtering, missing outcomes, stale activity, and the three separate progress measures. Git/test/human-review/export/theme/language flows remain in the suite.
 
-The 2026-10-10 NEEDS_REWORK report applies to the preserved original commit. Earlier engineering notes and host observations remain historical. [Remediation status](KNOWN-ISSUES.md) identifies the five changes and unresolved host, platform and release gates. The owner approved the exact initial source/history scope and it is now public. Follow-up changes require branch/PR review and appropriate merge authorization. Stable distribution additionally requires real-host acceptance, required hosted checks, package audit, immutable release evidence and explicit release approval.
+The accompanying archive manifest records actual final test totals, full commit SHA, every baseline delta path, distributed file hashes and font inspection. Neither automated tests nor interface appearance mean the original product scope has been fully achieved. Independent incremental audit and user acceptance remain pending.
 
-## Windows CI compatibility follow-up
+A separate real Codex CLI probe was started in a scratch directory with a read-only sandbox and a fixed-response/no-tools prompt. Its new session was discovered automatically at 2026-10-08 22:26:03 UTC. The in-app browser subsequently selected its exact ID and displayed its real task and stale execution evidence. The initial automated selection assertion sampled before the asynchronous selection response; later direct browser inspection confirmed the selection. The CLI itself produced no final reply within the 90-second test bound and was stopped, so a **real completed Codex turn is not validated in this run**. The raw CLI error was not retained; no precise timeout cause is claimed. Isolated browser and service regression tests do verify selected-log appends and completed-turn rendering, but are not a substitute for that missing live completion result.
 
-The declared runtime range is `^22.17.0 || ^24.2.0`. [Node 22.17.0's official release](https://nodejs.org/en/blog/release/v22.17.0) updates libuv to 1.51.0, whose [changelog](https://github.com/libuv/libuv/blob/v1.51.0/ChangeLog) includes Windows file metadata and volume-serial corrections. [Node 24.1.0's tagged header](https://github.com/nodejs/node/blob/v24.1.0/deps/uv/include/uv/version.h) still has libuv 1.50.0; [Node 24.2.0's header](https://github.com/nodejs/node/blob/v24.2.0/deps/uv/include/uv/version.h) has 1.51.0. The major-line ranges exclude Node 23, early Node 24 and unreviewed future majors. Node 22.15.0 Windows CI rejected ordinary synthetic file/Git reads during strict identity comparison. The upstream defect is a supported explanation, not proof that every failure had one cause.
+## Historical: 0.1.1-rc.3 P-01 / D-01 verification boundary (superseded by RC4)
 
-The fixture runner also canonicalizes its newly created temporary root before deriving synthetic homes. An owned alias-root experiment with the existing nine collector tests changed from four passing/five failing to nine passing, without application or test changes. The first long-path diagnostic had separate Git filename-length failures and was corrected; those records remain local. The original hosted run did not print literal TMP/TEMP, so a specific 8.3 spelling has not been established.
+RC2 is preserved as 8495bac1bcabf619afaafb1b4e126b5a429ccf25. This repair verifies denied **I/O calls**, not merely hidden UI text. The initial synthetic RC2 reproduction failed for upper/mixed-case Work UUIDs and alternate reader paths; the release handoff includes red/green evidence. Current regression tests cover source grants, UUID aliases, header mismatches, revocation, restart, alternate evidence readers, scoped RPC, focused-dialog invalidation and delayed evidence replies. Four/six-field examples are checked against the unchanged Hook implementation.
 
-Runtime guards, test assertions, dependency versions, Hook deadlines and public-source history stay intact. This fixes declared tooling compatibility and test setup; real-host/manual acceptance and stable release remain separate gates.
+Full Node and Edge verification is run against the exact committed release staging tree. Final counts and commands are in the generated report and release inventory. Previously captured real Work callbacks are rendered by RC3; fresh callbacks from the existing development session are reported separately, with product identity unconfirmed. These checks are not a newly created Work test, new prompt-to-screen latency measurement, or long-duration reliability certification.
+
+Pending manual acceptance: a new Work locally greeting and tool turn; authorized real Codex session selection, append and completed-turn display; and the real app-server's compatibility with the stricter reply envelope. RPC global listing and unsolicited notifications are disabled to prevent unscoped content ingestion, so notification-only plan/token updates are unavailable through that adapter. No runtime/client restart, trust change or public publishing is performed by the repair.
+
+## RC4 validation
+
+See [RC4 implementation](RC4-REMEDIATION.md) for the permission matrix, tests and explicit host limits. The RC3 paragraph above describes that historical candidate, not current RPC behavior. RC4 evidence includes real Windows Edge UI with synthetic events; it is not proof of a fresh real Work or Codex host turn. The external RC4_WORK_B_HANDOFF.md identifies the fixed commit and exact candidate ZIP.

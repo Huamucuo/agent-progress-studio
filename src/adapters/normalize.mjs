@@ -2,6 +2,12 @@ import { safeText } from '../core/engine.mjs';
 const plan = entries => (Array.isArray(entries) ? entries : []).map(p => ({ step: p.step, status: p.status === 'in_progress' ? 'inProgress' : p.status }));
 const parse = value => { try { return typeof value === 'string' ? JSON.parse(value) : value; } catch { return null; } };
 const textContent = content => Array.isArray(content) ? content.filter(x => ['input_text', 'output_text', 'text'].includes(x.type)).map(x => x.text || '').join('\n') : '';
+function publicChat(payload,role){
+ if(payload.role!=null&&payload.role!==role)return false;
+ if(payload.channel!=null&&!['commentary','final'].includes(payload.channel))return false;
+ if(payload.phase!=null&&!['commentary','final_answer'].includes(payload.phase))return false;
+ return !Object.hasOwn(payload,'encrypted_content');
+}
 function usage(info, base) {
   const total = info?.total_token_usage || info?.total || {};
   const last = info?.last_token_usage || info?.last || {};
@@ -11,13 +17,13 @@ function usage(info, base) {
 }
 function itemEvent(item, completed, base) {
   const type = String(item?.type || '').toLowerCase();
-  if (type === 'agentmessage') return [{ ...base, kind: 'message', text: safeText(item.text) }];
-  if (type === 'usermessage') return [{ ...base, kind: 'task', title: textContent(item.content) }];
+  if (type === 'agentmessage') return publicChat(item,'assistant')&&typeof item.text==='string'?[{ ...base, kind: 'message', chatRole:'assistant',chatVisibility:'public',text: safeText(item.text) }]:[];
+  if (type === 'usermessage') return publicChat(item,'user')?[{ ...base, kind: 'task', chatRole:'user',chatVisibility:'public',title: textContent(item.content) }]:[];
   if (['commandexecution', 'mcptoolcall', 'dynamictoolcall', 'collabagenttoolcall', 'filechange', 'websearch'].includes(type)) {
     const exitCode = item.exitCode ?? item.exit_code;
     return [{ ...base, kind: 'tool', toolId: item.id, name: item.tool || item.name || item.type,
       status: completed ? ((exitCode != null && exitCode !== 0) || item.status === 'failed' ? 'failed' : item.status === 'declined' ? 'declined' : 'completed') : 'inProgress',
-      exitCode, text: safeText(item.aggregatedOutput ?? item.aggregated_output ?? item.command ?? item.output ?? item.query ?? '') }];
+      exitCode, ...(type==='commandexecution'&&typeof item.command==='string'?{command:safeText(item.command,2000)}:{}), text: safeText(item.aggregatedOutput ?? item.aggregated_output ?? item.command ?? item.output ?? item.query ?? '') }];
   }
   return [];
 }
@@ -30,8 +36,8 @@ export function normalizeRecord(record, id) {
     if (p.type === 'token_count' && p.info) return [usage(p.info, base)];
     if (['task_started', 'task_complete', 'turn_aborted'].includes(p.type)) return [{ ...base, kind: 'turn', turnId: p.turn_id,
       status: { task_started: 'inProgress', task_complete: 'completed', turn_aborted: 'interrupted' }[p.type] }];
-    if (p.type === 'user_message') return [{ ...base, kind: 'task', title: p.message }];
-    if (p.type === 'agent_message') return [{ ...base, kind: 'message', text: p.message }];
+    if (p.type === 'user_message') return publicChat(p,'user')&&typeof p.message==='string'?[{ ...base, kind: 'task', chatRole:'user',chatVisibility:'public',title: p.message }]:[];
+    if (p.type === 'agent_message') return publicChat(p,'assistant')&&typeof p.message==='string'?[{ ...base, kind: 'message', chatRole:'assistant',chatVisibility:'public',text: safeText(p.message) }]:[];
     if (p.type === 'item_started' || p.type === 'item_completed') return itemEvent(p.item, p.type === 'item_completed', base);
     if (p.type === 'plan_update' || p.type === 'task_plan') return [{ ...base, kind: 'plan', plan: plan(p.plan) }];
   }
@@ -41,7 +47,8 @@ export function normalizeRecord(record, id) {
         const args = parse(p.arguments ?? p.input);
         if (args?.plan) return [{ ...base, kind: 'plan', plan: plan(args.plan), text: args.explanation }];
       }
-      return [{ ...base, kind: 'tool', toolId: p.call_id || p.id, name: p.name, status: 'inProgress', text: safeText(p.arguments ?? p.input) }];
+      const args=parse(p.arguments??p.input), command=['exec_command','shell_command','shell'].includes(p.name)?args?.cmd??args?.command:null;
+      return [{ ...base, kind: 'tool', toolId: p.call_id || p.id, name: p.name, status: 'inProgress', ...(typeof command==='string'?{command:safeText(command,2000)}:{}), text: safeText(p.arguments ?? p.input) }];
     }
     if (['function_call_output', 'custom_tool_call_output'].includes(p.type)) {
       const out = typeof p.output === 'string' ? p.output : JSON.stringify(p.output);

@@ -1,0 +1,15 @@
+import path from 'node:path';import {homedir}from 'node:os';import {findCodex}from './hooks.mjs';import {LocalRpc,loadedIds}from './local-rpc.mjs';import {canonicalPath}from '../src/core/resource-registry.mjs';import {canonicalUuid,sessionKey}from '../src/core/session-access.mjs';import {VERSION}from '../src/version.mjs';
+const statusProjection=wire=>({id:wire.scalar(wire.at('result','thread','id')),idle:wire.scalar(wire.at('result','thread','status','type'))==='idle'});
+export const backgroundProjection=wire=>{const result=wire.at('result'),data=wire.at('result','data');if(data?.type!=='array'||data.values.length>1000||[...result.fields.keys()].some(k=>!['data','nextCursor'].includes(k)))throw Error('Unknown background response');return {count:wire.at('result','nextCursor')?.type==='null'?data.values.length:null};};
+/** IDs and idle/background counts only, under the original content permit. No process termination. */
+export async function officialBackground({s,ref,check}){
+ let r,own=false,onInvalidate;try{check();
+  if(s.mode==='app-server'){r=s.source;if(!r.experimentalApi)return {supported:false,reason:'UNSUPPORTED_EXPERIMENTAL_BACKGROUND_STATUS'};}
+  else if(s.mode==='local'){
+   if(await canonicalPath(s.codexHome)!==await canonicalPath(process.env.CODEX_HOME||path.join(homedir(),'.codex')))return {supported:false,reason:'UNSUPPORTED_CUSTOM_LOCAL_RUNTIME'};check();const executable=await findCodex();check();if(!executable)return {supported:false,reason:'UNSUPPORTED_LOCAL_RUNTIME'};
+   r=new LocalRpc({executable,codexHome:s.codexHome,check,timeoutMs:5000});own=true;onInvalidate=()=>r.close();s.access.on('invalidate',onInvalidate);
+   await r.request('initialize',{clientInfo:{name:'aps_background_observer',version:VERSION},capabilities:{experimentalApi:true,optOutNotificationMethods:['item/reasoning/textDelta','item/reasoning/summaryTextDelta','item/agentMessage/delta','item/commandExecution/outputDelta','turn/diff/updated']}},()=>true);r.initialized();let found=false,cursor=null;const seen=new Set();for(let i=0;i<20;i++){const page=await r.request('thread/loaded/list',{limit:100,cursor},loadedIds);check();found=page.ids.some(id=>canonicalUuid(id)===ref.id);cursor=page.cursor;if(found||!cursor)break;if(seen.has(cursor))throw Error('Invalid background discovery cursor');seen.add(cursor);}if(!found)return {supported:false,reason:'UNSUPPORTED_UNLOADED_SESSION'};
+  }else return {supported:false,reason:'UNSUPPORTED_WORK_BACKGROUND_STATUS'};
+  const status=await r.request('thread/read',{threadId:ref.id,includeTurns:false},statusProjection);check();if(sessionKey(status.id)!==ref.id)throw Error('Background target mismatch');const background=await r.request('thread/backgroundTerminals/list',{threadId:ref.id,limit:100},backgroundProjection);check();return {supported:background.count!==null,idle:status.idle,count:background.count,reason:background.count===null?'UNKNOWN_BACKGROUND_PAGINATION':null};
+ }catch{check();return {supported:false,reason:'UNSUPPORTED_BACKGROUND_STATUS'};}finally{if(onInvalidate)s.access.removeListener('invalidate',onInvalidate);if(own)r?.close();}
+}

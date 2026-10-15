@@ -1,0 +1,15 @@
+APS built-in desktop-pet artwork
+Copyright (c) 2026 Agent Progress Studio contributors
+SPDX-License-Identifier: MIT
+
+The four bundled PNG atlases (dog, cat, capybara, outline dog) are AI-assisted
+project-created pixel artwork. The project intends to distribute them under
+the application MIT LICENSE included with this program. They are not
+downloaded game sprites, third-party character packs, fonts or Emoji.
+
+Raw sources, full generation prompts, hashes, compiler and source/rights
+limitations accompany the source and ArtSources archives. See
+docs/PET_RESOURCE_LICENSES.md and docs/PET_STYLE_RESEARCH.md in that source.
+This statement is not a certification of originality or third-party rights.
+User-imported packs retain their separate local origin/license declarations
+and are not part of the APS distribution.

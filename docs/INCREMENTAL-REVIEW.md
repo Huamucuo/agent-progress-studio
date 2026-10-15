@@ -1,8 +1,5 @@
 # 0.1.1-rc.3 P-01 / D-01 repair candidate
 
-> Historical development notes for 0.1.1-rc.4. These describe implementation intent or earlier observations; they do not certify current safety or host compatibility. The original baseline had five independent-review findings; the current branch implements fixes. Current review status and remaining limits are recorded below. Read [KNOWN-ISSUES.md](KNOWN-ISSUES.md) and [VERIFICATION.md](VERIFICATION.md) before using a real session.
-
-
 Status: **pending Work B independent supplemental audit and user acceptance**. No public release. Development freezes at the delivered commit and archive.
 
 Repair baseline: **8495bac1bcabf619afaafb1b4e126b5a429ccf25** (0.1.1-RC2, Work B: NEEDS_REWORK). Branch: `repair-rc2-p01-d01`. RC2 commit and ZIP remain unchanged. The earlier V0.1 READY_FOR_RELEASE decision does not apply to this candidate.

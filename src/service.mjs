@@ -40,16 +40,17 @@ export class StudioService extends EventEmitter {
       if (this.source instanceof WorkHookSource && !this.access.can(sessionRef(this.hookBackend, 'scope'), 'observe')) this.source.close();
       this.emit('invalidate', { authorityInstanceId: this.access.instanceId, policyRevision: this.access.revision });
     });
-    await this.select({ mode: this.mode });
+    try{await this.select({...this.options.initialSelection,mode:this.mode,initialRestore:!!this.options.initialSelection});}
+    catch(e){if(this.mode!=='app-server'||!this.options.initialSelection)throw e;this.source?.close();this.source=null;this.selected=null;this.error='Configured local connection unavailable';await this.refreshInternal();}
   }
   currentRef() {
     const id = this.mode === 'work-hooks' ? this.source?.id : this.mode === 'app-server' ? this.source?.threadId : this.selected?.id;
     return id ? sessionRef(this.mode === 'app-server' ? this.source.backend : this.mode === 'work-hooks' ? this.hookBackend : this.localBackend, id) : null;
   }
   publicSession(s, backend = this.localBackend) { const ref = sessionRef(backend, s.id); return { id: s.id, title: s.id, cwd: '', updatedAt: s.updatedAt, origin: this.access.origin(ref), bodyRead: this.access.can(ref, 'content'), current: s.id === canonicalUuid(process.env.CODEX_THREAD_ID), sessionRef: ref }; }
-  async discover() {
+  async discover(priorityId=this.selected?.id||this.options.initialSelection?.id||process.env.CODEX_THREAD_ID) {
     const excluded = new Set([...Object.entries(this.access.labels).filter(([, origin]) => origin === 'work-local').map(([id]) => id), ...this.access.list(this.localBackend).filter(ref => this.access.origin(ref) === 'work-local').map(ref => ref.id)]);
-    this.sessions = await discoverSessions(this.codexHome, 60, excluded); return this.sessions.map(s => this.publicSession(s));
+    this.sessions = await discoverSessions(this.codexHome, 60, excluded,priorityId); return this.sessions.map(s => this.publicSession(s));
   }
   logSource(selected) { return new LogSource(selected.path, selected.id, undefined, { gateway: this.gateway, ref: sessionRef(this.localBackend, selected.id) }); }
   select(config) {
@@ -64,15 +65,16 @@ export class StudioService extends EventEmitter {
         const ref = sessionRef('demo:fixtures', next.scenario); if (!this.access.can(ref, 'observe')) await this.access.change(ref, { observe: true }, this.access.revision);
       }
       else if (config.mode === 'local') {
-        await this.discover(); selected = config.id ? this.sessions.find(s => s.id === canonicalUuid(config.id)) : this.sessions.find(s => s.id === canonicalUuid(process.env.CODEX_THREAD_ID)) || this.sessions[0];
-        if (config.id && !selected) throw new Error('Session no longer available; refresh discovery'); if (selected) next = this.logSource(selected);
+        await this.discover(config.id||process.env.CODEX_THREAD_ID); selected = config.id ? this.sessions.find(s => s.id === canonicalUuid(config.id)) : this.sessions.find(s => s.id === canonicalUuid(process.env.CODEX_THREAD_ID)) || this.sessions[0];
+        if (config.id && !selected) { if(!config.initialRestore)throw new Error('Session no longer available; refresh discovery');selected={id:canonicalUuid(config.id),path:null}; }
+        if (selected?.path) next = this.logSource(selected);
       } else if (config.mode === 'work-hooks') {
         if (config.id !== undefined && !validHookId(config.id)) throw new Error('Invalid Hook session ID');
         const scope = sessionRef(this.hookBackend, 'scope');
         // Selecting the installed opt-in metadata adapter explicitly enables observation.
-        if (!this.access.can(scope, 'observe')) await this.access.change(scope, { observe: true }, this.access.revision);
+        if (!this.access.can(scope, 'observe') && !config.initialRestore) await this.access.change(scope, { observe: true }, this.access.revision);
         next = new WorkHookSource(this.workHooksDir, sessionKey(config.id) || '', { access: this.access, ref: scope, registry: this.registry });
-        await next.poll(); if (config.id && !next.received) { next.close(); throw new Error('Hook session no longer available'); }
+        await next.poll(); if (config.id && !next.received && !config.initialRestore) { next.close(); throw new Error('Hook session no longer available'); }
       } else if (config.mode === 'app-server') {
         next = new AppServerSource(validateEndpoint(config.endpoint), { access: this.access, experimentalApi: config.experimentalApi === true });
         const candidates = await next.connect(); selected = candidates.find(s => s.id === sessionKey(config.id || process.env.CODEX_THREAD_ID)) || (!config.id && candidates[0]);
@@ -88,6 +90,7 @@ export class StudioService extends EventEmitter {
     const revision = this.access.revision, selection = this.selectionRevision; await this.discover();
     if (this.mode === 'local') {
       if (this.selected && !this.sessions.some(s => s.id === this.selected.id && s.path === this.selected.path)) { this.source?.close(); this.source = null; this.error = 'Selected session unavailable or excluded'; }
+      if(!this.source&&this.selected){const returned=this.sessions.find(s=>s.id===this.selected.id);if(returned){this.selected=returned;this.source=this.logSource(returned);}}
       if (!this.source && !this.selected && this.sessions.length) { this.selected = this.sessions.find(s => s.id === canonicalUuid(process.env.CODEX_THREAD_ID)) || this.sessions[0]; this.source = this.logSource(this.selected); }
     }
     let task = this.source?.state || createState(this.selected?.id), permits = [];
@@ -124,11 +127,11 @@ export class StudioService extends EventEmitter {
     permits = [...new Set(permits)]; for (const p of permits) this.access.check(p);
     const acceptance = evaluateAcceptance(this.evidence.manifest, this.evidence, this.reviews);
     const connected = !!this.source && !this.error && (this.mode !== 'work-hooks' || this.source.received);
-    const sessions = this.mode === 'work-hooks' ? this.source.sessions.map(s => this.publicSession(s, this.hookBackend)) : this.mode === 'app-server' ? this.source.sessions.map(s => this.publicSession(s, this.source.backend)) : this.mode === 'local' ? this.sessions.map(s => this.publicSession(s)) : [];
+    const sessions = this.mode === 'work-hooks' ? (this.source?.sessions||[]).map(s=>this.publicSession(s,this.hookBackend)) : this.mode === 'app-server' ? (this.source?.sessions||[]).map(s=>this.publicSession(s,this.source.backend)) : this.mode === 'local' ? this.sessions.map(s=>this.publicSession(s)) : [];
     const snapshot = { schemaVersion: 1, version: VERSION, observedAt: new Date().toISOString(),
       source: { mode: this.mode, connected, error: this.error, label: this.mode === 'demo' ? 'SIMULATED' : this.mode === 'work-hooks' ? 'Local lifecycle Hooks · metadata only' : this.mode === 'local' ? 'Codex JSONL · best effort' : 'Codex app-server · authorized history polling',
         origin: this.mode === 'demo' ? 'simulated' : ref ? this.access.origin(ref) : 'unknown', attribution: this.mode === 'demo' ? 'adapter' : ref && this.access.origin(ref) !== 'unknown' ? 'user-confirmed' : 'unconfirmed',
-        contentAccess: { granted: !!ref && this.access.can(ref, 'content'), readable: !!content }, evidenceAccess: { granted: !!this.evidenceContext, candidateRoot: candidateRoot || null },
+        contentAccess: { granted: !!ref && this.access.can(ref, 'content'), readable: !!content },replyAccess:{granted:!!ref&&this.access.can(ref,'reply'),supported:this.mode==='local'&&!!ref&&this.access.origin(ref)==='codex'}, evidenceAccess: { granted: !!this.evidenceContext, candidateRoot: candidateRoot || null },
         endpoint: this.mode === 'app-server' ? this.source?.endpoint : null, diagnostics: { ...this.source?.diagnostics, ...(this.legacyReviews ? { legacyReviews: 'PENDING_EXPLICIT_MIGRATION' } : {}) },
         capabilities: { history: !!content || this.mode === 'demo', notifications: (this.source?.diagnostics?.notificationsReceived || 0) > 0, approvals: false }, selection: ref ? 'selected-session' : 'none' },
       sessions, localSessions: this.sessions.map(s => this.publicSession(s)), hookSessions: this.mode === 'work-hooks' ? sessions : [], workspace: this.workspace, task, acceptance, evidence: this.evidence,
@@ -145,6 +148,10 @@ export class StudioService extends EventEmitter {
       if (!known || this.access.origin(ref) === 'work-local') throw new Error('Only a discovered, user-confirmed Codex session can be authorized');
       await this.access.change(ref, { origin: 'codex', content: true }, expected);
     } else if (input.decision === 'revoke') await this.access.change(ref, { content: false }, expected);
+    else if(input.decision==='allow-reply'){
+      if(this.mode!=='local'||!this.currentRef()||refKey(ref)!==refKey(this.currentRef())||ref.backend!==this.localBackend||!this.access.can(ref,'content'))throw Error('Reply requires the selected authorized local Codex task');
+      await this.access.change(ref,{reply:true},expected);
+    }else if(input.decision==='revoke-reply')await this.access.change(ref,{reply:false},expected);
     else if (input.decision === 'allow-evidence') {
       if (this.access.origin(ref) !== 'codex' || !this.currentRef() || refKey(ref) !== refKey(this.currentRef())) throw new Error('Confirm the selected Codex source first');
       const root = await this.registry.workspace(input.root);

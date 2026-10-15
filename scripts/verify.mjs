@@ -16,6 +16,9 @@ await authority.change(ref, { evidence: true, root: canonical }, authority.revis
 const context = await new DataGateway(authority, registry).evidence(ref, canonical), options = { context };
 const before = await sourceFingerprint(root, options);
 const jobs = [
+  ['pet-boundaries', ['--test','tests/pet-assets.test.mjs','tests/pet-activity.test.mjs','tests/pet-renderer.test.mjs','tests/pet-controller.test.mjs','tests/pet-state.test.mjs','tests/pet-host.test.mjs','tests/pet-window-state.test.mjs','tests/pet-progression.test.mjs','tests/pet-pack.test.mjs','tests/managed-spool.test.mjs','tests/hook-status-contract.test.mjs','tests/async-test-wait.test.mjs']],
+  ['desktop-boundaries', ['--test','tests/desktop-host.test.mjs','tests/desktop-hooks.test.mjs','tests/desktop-ingress.test.mjs']],
+  ['desktop-floating-boundaries', ['--test','tests/floating-state.test.mjs','tests/monitor-model.test.mjs','tests/sidebar-chat.test.mjs','tests/ipc-policy.test.mjs','tests/notices.test.mjs','tests/maintenance.test.mjs','tests/reply-authority.test.mjs','tests/reply.test.mjs','tests/local-rpc.test.mjs','tests/background-status.test.mjs','tests/power.test.mjs','tests/power-manager.test.mjs','tests/hook-directory.test.mjs']],
   ['authority', ['--test', 'tests/authority.test.mjs']],
   ['public-preview-boundaries', ['--test', 'tests/public-boundaries.test.mjs', 'tests/public-boundary-alternates.test.mjs']],
   ['boundary', ['--test', 'tests/resource-boundary.test.mjs']],

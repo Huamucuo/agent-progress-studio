@@ -10,8 +10,8 @@ export function sessionRef(backend, value) {
   return Object.freeze({ backend, id });
 }
 export const refKey = ref => JSON.stringify(sessionRef(ref.backend, ref.id));
-const caps = ['content', 'evidence', 'observe'];
-const blank = () => ({ origin: 'unknown', content: { allowed: false, generation: 0 }, evidence: { allowed: false, generation: 0, root: null }, observe: { allowed: false, generation: 0 } });
+const caps = ['content', 'evidence', 'observe', 'reply'];
+const blank = () => ({ origin: 'unknown', content: { allowed: false, generation: 0 }, evidence: { allowed: false, generation: 0, root: null }, observe: { allowed: false, generation: 0 }, reply:{allowed:false,generation:0} });
 
 /** Sole capability authority. Permits are opaque, instance-bound, and never renewed. */
 export class SessionAccess extends EventEmitter {
@@ -27,6 +27,7 @@ export class SessionAccess extends EventEmitter {
           const entry = blank(); entry.origin = value.origin;
           for (const cap of caps) if (value[cap] && Number.isSafeInteger(value[cap].generation) && value[cap].generation >= 0) entry[cap] = { allowed: value[cap].allowed === true, generation: value[cap].generation, ...(cap === 'evidence' ? { root: typeof value[cap].root === 'string' ? value[cap].root : null } : {}) };
           if (entry.origin !== 'codex' || ref.backend.startsWith('hooks:')) entry.content.allowed = false;
+          if(entry.origin!=='codex'||!entry.content.allowed||!ref.backend.startsWith('local:'))entry.reply.allowed=false;
           if (!entry.evidence.root) entry.evidence.allowed = false;
           this.#entries[key] = entry;
         } catch { /* corrupt or ambiguous policy entry denies access */ }
@@ -43,7 +44,7 @@ export class SessionAccess extends EventEmitter {
   entry(ref) { return structuredClone(this.#entries[refKey(ref)] || { ...blank(), origin: ref.backend.startsWith('local:') ? this.labels[ref.id] || 'unknown' : 'unknown' }); }
   origin(ref) { return this.entry(ref).origin; }
   can(ref, capability, root) {
-    try { const e = this.entry(ref); return !this.closed && caps.includes(capability) && e[capability].allowed && (capability !== 'content' || e.origin === 'codex') && (capability !== 'evidence' || (!!root && e.evidence.root === root)); } catch { return false; }
+    try { const e = this.entry(ref); return !this.closed && caps.includes(capability) && e[capability].allowed && (capability !== 'content' || e.origin === 'codex') && (capability!=='reply'||(e.origin==='codex'&&e.content.allowed&&ref.backend.startsWith('local:'))) && (capability !== 'evidence' || (!!root && e.evidence.root === root)); } catch { return false; }
   }
   issue(ref, capability, root) {
     if (!this.can(ref, capability, root)) throw new Error('Access denied');
@@ -69,6 +70,8 @@ export class SessionAccess extends EventEmitter {
     }
     if (change.root !== undefined) { if (typeof change.root !== 'string') throw new Error('Invalid evidence root'); next.evidence.root = change.root; }
     if (next.content.allowed && (next.origin !== 'codex' || ref.backend.startsWith('hooks:'))) throw new Error('Only confirmed Codex content can be granted');
+    if(change.reply===true&&(next.origin!=='codex'||!next.content.allowed||!ref.backend.startsWith('local:')))throw Error('Reply requires confirmed local Codex content');
+    if(change.content===false||(change.origin!==undefined&&change.origin!==old.origin)){next.reply.allowed=change.reply===true&&change.content!==false;next.reply.generation++;}
     if (next.evidence.allowed && !next.evidence.root) throw new Error('Explicit workspace required');
     const restrictive = caps.some(c => change[c] === false) || (change.origin !== undefined && change.origin !== old.origin);
     if (change.origin !== undefined && change.origin !== old.origin) { next.content.generation++; if (change.content !== true) next.content.allowed = false; }

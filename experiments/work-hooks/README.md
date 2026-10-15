@@ -1,5 +1,3 @@
-> Experimental component: the repair branch adds resource-identity and fixed-grant read guards. Use synthetic events while real-host acceptance remains pending. See [known issues](../../docs/KNOWN-ISSUES.md).
-
 # Local lifecycle Hook feasibility probe
 
 Experimental, metadata-only support. An isolated recorder test is **not** proof that ChatGPT Work locally fired a Hook.
